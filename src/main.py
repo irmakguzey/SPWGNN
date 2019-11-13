@@ -1,7 +1,8 @@
-# This model creates n number of random rectangles with a fixed size but in random positions. 
-# And it creates this environment N times. 
-# And in each iteration it drops one more rectangle and looks saves the rectangles'
-# positions and orientations (trajectories). 
+# This model is the same as the first model. 
+# Only it has a graph neural network running at the background and it does some predictions.
+# A graph is put into the objects with each object representing a node in the graph. 
+# A line is drawn between the centers of the objects if they have a relationship.
+# The objects that are predicted to stay still is colored in yellow and the others are colored in blue. TODO look into this comment
 import random
 import math
 import time
@@ -31,7 +32,7 @@ class Main(pyglet.window.Window):
 
 		self.set_caption('Random tower building')
 
-		self.fps_display = pyglet.clock.ClockDisplay()
+		self.fps_display = pyglet.window.FPSDisplay(self)
 
 		self.iteration_text = pyglet.text.Label('Number of iterations is: {}'.format(self.N),
 							font_size=10,
@@ -58,6 +59,7 @@ class Main(pyglet.window.Window):
 
 		self.draw_options = pymunk.pyglet_util.DrawOptions()
 		self.draw_options.flags = self.draw_options.DRAW_SHAPES
+		self.draw_options.collision_point_color = (10, 20, 30, 40)
 
 		# trajectories will look like: 
 		# dropped_object: {X: [...], Y: [...]}, boxes: [ {X: [...], Y: [...]}, {X: [...], Y: [...]}, ... ]
@@ -76,7 +78,6 @@ class Main(pyglet.window.Window):
 		pyglet.clock.schedule_interval(self.update, 1/60.0)
 		self.event_loop.run()
 
-	# TODO: create trajectory file
 	def run_and_take_trajectory(self):
 		for i in range(self.N):
 			pyglet.clock.schedule_once(self.callback, i*4, callback_type=0)
@@ -85,7 +86,6 @@ class Main(pyglet.window.Window):
 		pyglet.clock.schedule_once(self.callback, self.N*4, callback_type=2)
 		pyglet.clock.schedule_once(self.event_loop.exit, self.N*4+3)
 		print('*** scheduling over')
-		# new_event_loop.exit()
 
 	def callback(self, dt, callback_type):
 		if callback_type == 0:
@@ -135,7 +135,7 @@ class Main(pyglet.window.Window):
 
 		for (layer_num, layer_size) in enumerate(layers):
 			self.boxes.append([])
-			for box_index in range(layer_size):
+			for _ in range(layer_size):
 				x_pos = random.randint(self.left_edge, self.right_edge)
 				try_number = 0
 				try_exceed = 100
@@ -223,6 +223,10 @@ class Main(pyglet.window.Window):
 			self.trajectories['dropped_object']['X'].append(self.dropped_object.body.position[0])
 			self.trajectories['dropped_object']['Y'].append(self.dropped_object.body.position[1])
 
+	# This method returns true if two box is touching each other and false otherwise
+	def there_is_relation(self, box_a, box_b):
+		return (abs(box_a.body.position[0] - box_b.body.position[0]) < self.rect_width) and (abs(box_a.body.position[1] - box_b.body.position[1]) < self.rect_height)
+
 	def on_key_press(self, symbol, modifiers):
 		if symbol == key.ESCAPE:
 			self.event_loop.exit()
@@ -238,7 +242,28 @@ class Main(pyglet.window.Window):
 		self.iteration_text.draw()
 		self.rectangle_text.draw()
 		self.fps_display.draw()
+		
 		self.space.debug_draw(self.draw_options)
+		
+		# Draw lines between boxes with relationship between
+		glBegin(GL_LINES)
+		for box_a in self.flat_boxes:
+			for box_b in self.flat_boxes:
+				if self.there_is_relation(box_a, box_b):
+					p1 = Vec2d(box_a.body.position[0], box_a.body.position[1])
+					p2 = Vec2d(box_b.body.position[0], box_b.body.position[1])
+					glVertex2f(p1.x, p1.y)
+					glVertex2f(p2.x, p2.y)
+
+			if not self.dropped_object == None:
+				if self.there_is_relation(box_a, self.dropped_object):
+					p1 = Vec2d(box_a.body.position[0], box_a.body.position[1])
+					p2 = Vec2d(self.dropped_object.body.position[0], self.dropped_object.body.position[1])
+					glVertex2f(p1.x, p1.y)
+					glVertex2f(p2.x, p2.y)
+
+		glEnd()
+			
 
 if __name__ == '__main__':
 	n = int(input('Please enter the number of rectangles you want: '))
