@@ -26,6 +26,7 @@ class Main(pyglet.window.Window):
 		self.window_width = 800
 		self.window_height = 600
 
+		self.relation_threshold = math.sqrt(self.window_height ** 2 + self.window_width ** 2)
 		self.event_loop = pyglet.app.EventLoop()
 		pyglet.window.Window.__init__(self, self.window_width,
 									   self.window_height, vsync=False)
@@ -63,9 +64,12 @@ class Main(pyglet.window.Window):
 
 		# trajectories will look like: 
 		# dropped_object: {X: [...], Y: [...]}, boxes: [ {X: [...], Y: [...]}, {X: [...], Y: [...]}, ... ]
-		self.trajectories = {'dropped_object': {'X':[], 'Y':[]}}
-		self.trajectories['boxes'] = [{'X':[], 'Y':[]} for i in range(self.n)]
-		print('self.trajectories is: {}'.format(self.trajectories))
+		# self.trajectories = {'dropped_object': {'X':[], 'Y':[]}}
+		# self.trajectories['boxes'] = [{'X':[], 'Y':[]} for i in range(self.n)]
+		# print('self.trajectories is: {}'.format(self.trajectories))
+		# trajectories will look like: 
+		# [trajectory#N):[(object#1):[(X):[...], (Y):[...]], (object#n):[(X):[], (Y):[]]...], trajectory#N+1:[.........], ...]
+		self.trajectories = []
 
 		if self.self_run:
 			self.run_and_take_trajectory()
@@ -100,11 +104,12 @@ class Main(pyglet.window.Window):
 		letters_and_digits = string.ascii_letters + string.digits
 		random_string = ''.join(random.choice(letters_and_digits) for i in range(8))
 		# dump the trajectories into a file
-		file_name = 'data/first_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
+		file_name = '../data/first_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
 		with open(file_name, 'w') as outfile:
 			json.dump(self.trajectories, outfile)
 
 	def create_world(self):
+		
 		self.space = pymunk.Space()
 		self.space.gravity = Vec2d(0., -900.)
 		self.space.sleep_time_threshold = 0.9
@@ -138,7 +143,7 @@ class Main(pyglet.window.Window):
 			for _ in range(layer_size):
 				x_pos = random.randint(self.left_edge, self.right_edge)
 				try_number = 0
-				try_exceed = 100
+				try_exceed = 500
 				if layer_num == 0: # It is more important to have a good ground
 					try_exceed = 1000
 				while try_number < try_exceed and (not self.lower_layers_check(x_pos, layer_num) or not self.same_layer_check(x_pos, layer_num)):
@@ -147,7 +152,7 @@ class Main(pyglet.window.Window):
 					try_number += 1
 				if try_number == try_exceed:
 					# print('number of tries exceeded :)')
-					continue # If after 50 random tries object wasn't able to be put then it doesnt put it :)
+					continue # If after try_exceed random tries object wasn't able to be put then it doesnt put it :)
 				y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
 				mass = 50.0
 				moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
@@ -163,6 +168,9 @@ class Main(pyglet.window.Window):
 		for i in range(len(self.boxes)):
 			for j in range(len(self.boxes[i])):
 				self.flat_boxes.append(self.boxes[i][j])
+		print('len(flat_boxes): {}'.format(len(self.flat_boxes)))
+		if len(self.flat_boxes) == self.n:
+			self.trajectories.append([])
 
 	# Drop a random object to the tower, x position is randomly found
 	def drop_object(self):
@@ -216,16 +224,19 @@ class Main(pyglet.window.Window):
 			self.space.step(step_dt)
 
 		if len(self.flat_boxes) == self.n:
-			for i,box in enumerate(self.flat_boxes):
-				self.trajectories['boxes'][i]['X'].append(box.body.position[0])
-				self.trajectories['boxes'][i]['Y'].append(box.body.position[1])
-		if not self.dropped_object == None:
-			self.trajectories['dropped_object']['X'].append(self.dropped_object.body.position[0])
-			self.trajectories['dropped_object']['Y'].append(self.dropped_object.body.position[1])
+			if not self.dropped_object == None:
+				if len(self.trajectories[-1]) == 0:
+					self.trajectories[-1].append([])
+					for _ in range(self.n):
+						self.trajectories[-1].append([])
+					
+				self.trajectories[-1][0].append([self.dropped_object.body.position[0],self.dropped_object.body.position[1]])
+				for i,box in enumerate(self.flat_boxes):
+					self.trajectories[-1][i+1].append([box.body.position[0],box.body.position[1]])
 
 	# This method returns true if two box is touching each other and false otherwise
 	def there_is_relation(self, box_a, box_b):
-		return (abs(box_a.body.position[0] - box_b.body.position[0]) < self.rect_width) and (abs(box_a.body.position[1] - box_b.body.position[1]) < self.rect_height)
+		return (math.sqrt((box_a.body.position[0] - box_b.body.position[0])**2 + (box_a.body.position[1] - box_b.body.position[1])**2) < self.relation_threshold)
 
 	def on_key_press(self, symbol, modifiers):
 		if symbol == key.ESCAPE:
