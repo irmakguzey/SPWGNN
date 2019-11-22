@@ -121,5 +121,5 @@ if __name__ == '__main__':
 	N = 1
 
 	first_model = train_gnn()
-	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, first_model)
+	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=first_model)
 	towerCreator.run()

@@ -199,14 +199,14 @@ class TowerCreator(pyglet.window.Window):
     # This function returns an array (n_objects), indicating the stability of each object
     # This is called at the of the drop_object
     def predict_stabilities(self):
-        n_of_traj = len(self.trajectories)
+        n_of_traj = 1
         n_objects = self.n+1 # including the dropped object
         n_relations = n_objects * (n_objects - 1)
         n_object_attr_dim = 2
 
         boxes = np.zeros((1, n_objects, n_object_attr_dim)) # 1 for 1 trajectory
         for o in range(n_objects):
-            t = n_of_traj-1
+            t = len(self.trajectories)-1
             print('len(self.trajectories[0]): {}, o: {}'.format(len(self.trajectories[0]), o))
             boxes[0,o,0] = self.trajectories[t][o][0][0]
             boxes[0,o,1] = self.trajectories[t][o][0][1]
