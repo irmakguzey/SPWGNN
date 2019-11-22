@@ -1,280 +1,125 @@
-# This model is the same as the first model. 
-# Only it has a graph neural network running at the background and it does some predictions.
-# A graph is put into the objects with each object representing a node in the graph. 
-# A line is drawn between the centers of the objects if they have a relationship.
-# The objects that are predicted to stay still is colored in yellow and the others are colored in blue. TODO look into this comment
-import random
-import math
-import time
+from TowerCreator import *
+from Networks import *
+from Blocks import *
 import json
-import string
-import numpy as np
 
-import pyglet
-from pyglet.gl import *
-from pyglet.window import key, mouse
+# boxes = ((n_of_traj, n_of_frame, n_objects, n_object_attr_dim))
+def calculate_stability(boxes):
+	# Look at the last 50 frame of the data and calculate whether the position of the object is the same or not
+	n_of_traj = len(boxes)
+	n_of_frame = len(boxes[0])
+	n_objects = len(boxes[0][0])
+	temp_y = np.zeros((n_of_traj, n_objects, 1)) # 1 is for making it 3 dimensional 
+	frame_threshold = 50 # Number of frames in the end to look for stability 
+	stability_threshold = 10 # The distance that will indicate that the corresponding object is stopping between frames
+	for o in range(n_objects):
+		for f in range(n_of_frame-frame_threshold, n_of_frame-1):
+			inzz = np.linalg.norm(boxes[:,f,o,0:2] - boxes[:,f+1,o,0:2]) < stability_threshold
+			temp_y[inzz, o, 0] = 1.0
+	return temp_y
 
-import pymunk
-from pymunk import Vec2d
-import pymunk.pyglet_util
+def train_gnn():
+	# Get the data and train the model
+	n_objects = 7 # 6+1
+	object_dim = 2
+	n_of_rel_type = 1 # for now we only have the distance relation
+	n_relations = n_objects*(n_objects-1)
+	n_of_traj = 1000
+	random_string = 'HbZ7clsI'
 
-class Main(pyglet.window.Window):
-	def __init__(self, self_run, n, N):
-		self.n = n # Number of rectangles
-		self.N = N # Number of iterations
-		self.self_run = self_run
-		self.window_width = 800
-		self.window_height = 600
+	prop_net = PropagationNetwork()
+	first_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
 
-		self.event_loop = pyglet.app.EventLoop()
-		pyglet.window.Window.__init__(self, self.window_width,
-									   self.window_height, vsync=False)
+	json_file = open('data/first_model_{}_{}_{}.txt'.format(n_objects-1, n_of_traj, random_string))
+	data = json.load(json_file)
+	json_file.close()
 
-		self.set_caption('Random tower building')
+	n_object_attr_dim = 2 # x position, y position
+	n_of_traj = len(data)
+	f_lengths = [len(t[0]) for t in data]
+	n_of_frame = min(f_lengths)
 
-		self.fps_display = pyglet.window.FPSDisplay(self)
+	boxes = np.zeros((n_of_traj, n_of_frame, n_objects, n_object_attr_dim))
 
-		self.iteration_text = pyglet.text.Label('Number of iterations is: {}'.format(self.N),
-							font_size=10,
-							x=10, y=400)
-		self.rectangle_text = pyglet.text.Label('Number of rectangles is: {}'.format(self.n),
-							font_size=10,
-							x=10, y=450)
+	# Fix the data into a numpy array
+	for t in range(n_of_traj):
+		for o in range(n_objects):
+			for f in range(n_of_frame):
+				boxes[t][f][o][0] = data[t][o][f][0]
+				boxes[t][f][o][1] = data[t][o][f][1]
 
-		self.rect_width = 150 # set size for rectangles
-		self.rect_height = 60
+	val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
+	val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
+	propagation = np.zeros((n_of_traj, n_objects, 100)) # TODO understand 100
+	cnt = 0 # cnt will indicate the relation that we are working with
+	# TODO turn this into a data structure
+	relation_threshold = 170 # Calculated according to the rectangle width and height
+	for m in range(n_objects):
+		for j in range(n_objects):
+			if(m != j):
+				# norm function gives the root of sum of squares of every element in the given array-like
+				# inzz is a matrix with 1s and 0s indicating whether the 
+				inzz = np.linalg.norm(boxes[:,0,m,0:2] - boxes[:,0,j,0:2], axis=1) < relation_threshold
+				val_receiver_relations[inzz, j, cnt] = 1.0
+				val_sender_relations[inzz, m, cnt] = 1.0   
+				cnt += 1
 
-		self.left_edge = 100 # the left edge of the x point i want to put rectangles to
-		self.right_edge = 700 # The space for putting the rectangles is from x (100,700)
-		self.spacing = self.right_edge - self.left_edge 
-		self.bottom_edge = 70
+	# TODO fit the model then
+	# stabilities = first_model.predict({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations,
+	#                                         'receiver_relations': val_receiver_relations, 'propagation': propagation})
+	# print(stabilities)
 
-		# X positions of the rectangles are chosen with not a random position but
-		# with a random interval to put the box
-		# And when a random interval is chosen by a box option for that place
-		# is removed
-		# ex: if the left/right edges and the interval is as above (100,700 and width is 100)
-		# then the rects can be at x: 100, 200, 300,400,500, 600 or 700.
-		self.random_x_interval = int(self.spacing / self.rect_width)
+	print('n_of_frame: {}'.format(n_of_frame))
+	print('n_of_traj: {}'.format(n_of_traj))
 
-		self.draw_options = pymunk.pyglet_util.DrawOptions()
-		self.draw_options.flags = self.draw_options.DRAW_SHAPES
-		self.draw_options.collision_point_color = (10, 20, 30, 40)
+	# train_size = 7/10 # 70% of the data is reserved for training
+	# np.random.shuffle(boxes)
+	# train_len = int(n_of_traj * train_size)
+	# boxes_train = boxes[0:train_len,:,:,:]
+	# boxes_val = boxes[train_len:,:,:,:]
 
-		# trajectories will look like: 
-		# dropped_object: {X: [...], Y: [...]}, boxes: [ {X: [...], Y: [...]}, {X: [...], Y: [...]}, ... ]
-		self.trajectories = {'dropped_object': {'X':[], 'Y':[]}}
-		self.trajectories['boxes'] = [{'X':[], 'Y':[]} for i in range(self.n)]
-		print('self.trajectories is: {}'.format(self.trajectories))
+	y = calculate_stability(boxes)
+	print('objects.shape: {}, sender_relations.shape: {}, receiver_relations.shape: {}, propagation.shape: {}. y.shape: {}'.format(boxes[:,0,:,:].shape,
+																																	val_sender_relations.shape,
+																																	val_receiver_relations.shape,
+																																	propagation.shape,
+																																	y.shape))
 
-		if self.self_run:
-			self.run_and_take_trajectory()
-		else:
-			self.create_world() # Creates a world with randomly put n rectangles
-
-		# self.create_world()
-
-	def run(self):
-		pyglet.clock.schedule_interval(self.update, 1/60.0)
-		self.event_loop.run()
-
-	def run_and_take_trajectory(self):
-		for i in range(self.N):
-			pyglet.clock.schedule_once(self.callback, i*4, callback_type=0)
-			pyglet.clock.schedule_once(self.callback, i*4+1, callback_type=1)
-		
-		pyglet.clock.schedule_once(self.callback, self.N*4, callback_type=2)
-		pyglet.clock.schedule_once(self.event_loop.exit, self.N*4+3)
-		print('*** scheduling over')
-
-	def callback(self, dt, callback_type):
-		if callback_type == 0:
-			self.create_world()
-		elif callback_type == 1:
-			self.drop_object()
-		elif callback_type == 2:
-			self.save_trajectories()
-
-	def save_trajectories(self):
-		# create random endix to the file name
-		letters_and_digits = string.ascii_letters + string.digits
-		random_string = ''.join(random.choice(letters_and_digits) for i in range(8))
-		# dump the trajectories into a file
-		file_name = 'data/first_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
-		with open(file_name, 'w') as outfile:
-			json.dump(self.trajectories, outfile)
-
-	def create_world(self):
-		self.space = pymunk.Space()
-		self.space.gravity = Vec2d(0., -900.)
-		self.space.sleep_time_threshold = 0.9
-		self.boxes = [] # 2d array box instances correspondingly for each layer
-		self.dropped_object = None
-		self.dropped_trajectory = [[],[]] # First element represents x trajectory, second: y
+	first_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
+						{'target': y},
+						batch_size=64,
+						epochs=40,
+						validation_split=0.3,
+						shuffle=True,
+						verbose=1)
 
 
-		# Create the ground line
-		ground_line = pymunk.Segment(self.space.static_body, Vec2d(20, self.bottom_edge), Vec2d(780, self.bottom_edge), 1)
-		ground_line.friction = 0.9
-		self.space.add(ground_line)
 
-		# There is a restriction in the program that the number of boxes in one
-		# layer can never be higher than the number of boxes at the above layer
-		# Setting up the number of boxes at the layers:
-		layers = [random.randint(self.random_x_interval/2+1, self.random_x_interval)] # represents the number of boxes in each layer
-		n = self.n - layers[0] # number of boxes in total
-		j = 1
-		while n > 0:
-			r = random.randint(1, min(self.random_x_interval, n))
-			while r > layers[j-1]:
-				r = random.randint(1, min(self.random_x_interval, n))
-			layers.append(r)
-			n -= r
-			j += 1
-		print('number of boxes in each layer is: {}'.format(layers))
+	stabilities = first_model.predict({'objects': boxes[0:1,0,:,:], 'sender_relations': val_sender_relations,
+												'receiver_relations': val_receiver_relations, 'propagation': propagation})
 
-		for (layer_num, layer_size) in enumerate(layers):
-			self.boxes.append([])
-			for _ in range(layer_size):
-				x_pos = random.randint(self.left_edge, self.right_edge)
-				try_number = 0
-				try_exceed = 100
-				if layer_num == 0: # It is more important to have a good ground
-					try_exceed = 1000
-				while try_number < try_exceed and (not self.lower_layers_check(x_pos, layer_num) or not self.same_layer_check(x_pos, layer_num)):
-					# print('{}th box in {}th layer, {}th try'.format(box_index, layer_num, try_number))
-					x_pos = random.randint(self.left_edge, self.right_edge)
-					try_number += 1
-				if try_number == try_exceed:
-					# print('number of tries exceeded :)')
-					continue # If after 50 random tries object wasn't able to be put then it doesnt put it :)
-				y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
-				mass = 50.0
-				moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
 
-				body = pymunk.Body(mass, moment)
-				body.position = Vec2d(x_pos, y_pos)
-				shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
-				shape.friction = 0.3
-				self.space.add(body, shape)
-				self.boxes[layer_num].append(shape)
+	print('stabilities: {}'.format(stabilities))
+	print('ys: {}'.format(y[0]))
 
-		self.flat_boxes = []
-		for i in range(len(self.boxes)):
-			for j in range(len(self.boxes[i])):
-				self.flat_boxes.append(self.boxes[i][j])
+	# TODO use data generator instead of actual fit function
+	# train_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_train,relation_threshold,True,64)
+	# valid_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_val,relation_threshold,False,128)
+	# first_model.fit_generator(generator=train_gen,
+	#                           validation_data=valid_gen,
+	#                           epochs=100,
+	#                           use_multiprocessing=True,
+	#                           workers=32,
+	#                           verbose=1)
 
-	# Drop a random object to the tower, x position is randomly found
-	def drop_object(self):
-		x_pos = random.randint(self.left_edge, self.right_edge)
-		layer_num = len(self.boxes)
-		y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
-		mass = 50.0
-		moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
-		body = pymunk.Body(mass, moment)
-		body.position = Vec2d(x_pos, y_pos)
-		shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
-		shape.friction = 0.3
-		self.space.add(body, shape)
-		self.dropped_object = shape
+	return first_model
 
-	# This method checks whether a box is stable or not
-	# If the layer is bigger than 0, then it checks whether there are two 
-	# boxes under the box or whether 
-	# This method only looks to the layers above the box not to once on the same level
-	def lower_layers_check(self, x, layer):
-		if layer == 0:
-			return True
-		lower_boxes = self.boxes[layer-1]
-		# Check whether there is a box that under this one which can cary it by itself
-		for first_box in lower_boxes:
-			first_box_pos = first_box.body.position
-			if abs(first_box_pos[0] - x) < self.rect_width/2: # means that box under can carry the box to come by itself
-				return True
-			if abs(first_box_pos[0] - x) < self.rect_width: # if this is the case box to come look for another box as well to carry it
-				for second_box in lower_boxes:
-					if second_box == first_box:
-						continue
-					second_box_pos = second_box.body.position
-					if abs(second_box_pos[0] - x) < self.rect_width:
-						return True
-		return False
-
-	# Check whether there is enough place for the box 
-	def same_layer_check(self, x, layer):
-		same_level_boxes = self.boxes[layer]
-		for box in same_level_boxes:
-			if abs(box.body.position[0] - x) < self.rect_width:
-				return False
-		return True
-
-	def update(self, dt):
-		step_dt = 1/250.
-		x = 0
-		while x < dt:
-			x += step_dt
-			self.space.step(step_dt)
-
-		if len(self.flat_boxes) == self.n:
-			for i,box in enumerate(self.flat_boxes):
-				self.trajectories['boxes'][i]['X'].append(box.body.position[0])
-				self.trajectories['boxes'][i]['Y'].append(box.body.position[1])
-		if not self.dropped_object == None:
-			self.trajectories['dropped_object']['X'].append(self.dropped_object.body.position[0])
-			self.trajectories['dropped_object']['Y'].append(self.dropped_object.body.position[1])
-
-	# This method returns true if two box is touching each other and false otherwise
-	def there_is_relation(self, box_a, box_b):
-		return (abs(box_a.body.position[0] - box_b.body.position[0]) < self.rect_width) and (abs(box_a.body.position[1] - box_b.body.position[1]) < self.rect_height)
-
-	def on_key_press(self, symbol, modifiers):
-		if symbol == key.ESCAPE:
-			self.event_loop.exit()
-		elif symbol == key.SPACE:
-			self.create_world()
-		elif symbol == key.DOWN:
-			self.drop_object() # Dropping an object from the highest part of the tower
-		elif symbol == key.P:
-			self.draw_drop_object_trajectory()
-
-	def on_draw(self):
-		self.clear()
-		self.iteration_text.draw()
-		self.rectangle_text.draw()
-		self.fps_display.draw()
-		
-		self.space.debug_draw(self.draw_options)
-		
-		# Draw lines between boxes with relationship between
-		glBegin(GL_LINES)
-		for box_a in self.flat_boxes:
-			for box_b in self.flat_boxes:
-				if self.there_is_relation(box_a, box_b):
-					p1 = Vec2d(box_a.body.position[0], box_a.body.position[1])
-					p2 = Vec2d(box_b.body.position[0], box_b.body.position[1])
-					glVertex2f(p1.x, p1.y)
-					glVertex2f(p2.x, p2.y)
-
-			if not self.dropped_object == None:
-				if self.there_is_relation(box_a, self.dropped_object):
-					p1 = Vec2d(box_a.body.position[0], box_a.body.position[1])
-					p2 = Vec2d(self.dropped_object.body.position[0], self.dropped_object.body.position[1])
-					glVertex2f(p1.x, p1.y)
-					glVertex2f(p2.x, p2.y)
-
-		glEnd()
-			
-
+	# This script reads the saved trajectory, trains the graph neural network
+	# Runs in Python3
 if __name__ == '__main__':
 	n = int(input('Please enter the number of rectangles you want: '))
-	N = int(input('Please enter the number of iterations you want for this n: '))
-	self_run_str = input('Would you like to interract with the app or let the app run itself and have trajectory? [y/n]')
-	print(self_run_str)
+	N = 1
 
-	if self_run_str == 'y':
-		self_run = True
-	else:
-		self_run = False
-
-	main = Main(self_run, n, N)
-	main.run()
+	first_model = train_gnn()
+	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=first_model)
+	towerCreator.run()
