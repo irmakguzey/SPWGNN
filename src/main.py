@@ -5,17 +5,20 @@ import json
 
 # boxes = ((n_of_traj, n_of_frame, n_objects, n_object_attr_dim))
 def calculate_stability(boxes):
-	# Look at the last 50 frame of the data and calculate whether the position of the object is the same or not
+	# Look at the last frame_threshold of the data and calculate whether the position of the object is the same or not
 	n_of_traj = len(boxes)
 	n_of_frame = len(boxes[0])
 	n_objects = len(boxes[0][0])
 	temp_y = np.zeros((n_of_traj, n_objects, 1)) # 1 is for making it 3 dimensional 
-	frame_threshold = 50 # Number of frames in the end to look for stability 
+	frame_threshold = 40 # Number of frames in the end to look for stability 
 	stability_threshold = 10 # The distance that will indicate that the corresponding object is stopping between frames
 	for o in range(n_objects):
-		for f in range(n_of_frame-frame_threshold, n_of_frame-1):
-			inzz = np.linalg.norm(boxes[:,f,o,0:2] - boxes[:,f+1,o,0:2]) < stability_threshold
-			temp_y[inzz, o, 0] = 1.0
+		for t in range(n_of_traj):
+			pos_change = 0
+			for f in range(n_of_frame-frame_threshold, n_of_frame-1):
+				pos_change += np.linalg.norm(boxes[t,f,o,0:2]-boxes[t,f+1,o,0:2])
+			if pos_change < stability_threshold:
+				temp_y[t,o,0] = 1.0
 	return temp_y
 
 def train_gnn():
@@ -84,23 +87,23 @@ def train_gnn():
 																																	val_receiver_relations.shape,
 																																	propagation.shape,
 																																	y.shape))
+	print('y is: {}'.format(y[50:100,:,0]))
 
 	first_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
 						{'target': y},
 						batch_size=64,
-						epochs=40,
-						validation_split=0.3,
+						epochs=10,
 						shuffle=True,
 						verbose=1)
 
 
 
-	stabilities = first_model.predict({'objects': boxes[0:1,0,:,:], 'sender_relations': val_sender_relations,
-												'receiver_relations': val_receiver_relations, 'propagation': propagation})
+	# stabilities = first_model.predict({'objects': boxes[0:1,0,:,:], 'sender_relations': val_sender_relations,
+	# 											'receiver_relations': val_receiver_relations, 'propagation': propagation})
 
 
-	print('stabilities: {}'.format(stabilities))
-	print('ys: {}'.format(y[0]))
+	# print('stabilities: {}'.format(stabilities))
+	# print('ys: {}'.format(y[0]))
 
 	# TODO use data generator instead of actual fit function
 	# train_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_train,relation_threshold,True,64)

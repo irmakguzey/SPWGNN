@@ -332,7 +332,7 @@ class TowerCreator(pyglet.window.Window):
             if not len(self.stabilities) == 0:
                 if self.stabilities[0, i, 0] > 0.5:
                     glColor3i(255, 0, 0)
-                    glVertex2f(box.body.position[0], box.body.position[b])
+                    glVertex2f(box_a.body.position[0], box_a.body.position[1])
             glEnd()
         
 
