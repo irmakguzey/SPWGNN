@@ -95,8 +95,8 @@ class PropagationNetwork:
         print('predicted: {}'.format(predicted.shape))
         model = Model(inputs=[objects,sender_relations,receiver_relations,propagation],outputs=[predicted])
         
-        adam = optimizers.Adam(lr=0.001, decay=0.0)
-        model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['accuracy','binary_accuracy']) # TODO binary 
+        adam = optimizers.Adam(lr=0.0005, decay=0.0)
+        model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['binary_accuracy'])
         self.Nets[n_objects]=model
         return model
 
