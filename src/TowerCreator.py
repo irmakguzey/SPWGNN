@@ -325,15 +325,21 @@ class TowerCreator(pyglet.window.Window):
                     glVertex2f(p1.x, p1.y)
                     glVertex2f(p2.x, p2.y)
             glEnd()
-            glBegin(GL_POINTS)
-            # if not len(self.stabilities) == 0:
-            #     if self.stabilities[0, i, 0] > 0.5:
-            #         box_a.color = (255,0,0)
-            if not len(self.stabilities) == 0:
-                if self.stabilities[0, i, 0] > 0.5:
-                    glColor3i(255, 0, 0)
-                    glVertex2f(box.body.position[0], box.body.position[b])
-            glEnd()
+        
+        glPointSize(50)
+        glBegin(GL_POINTS)
+        glColor3i(255, 0, 0)
+        # if not len(self.stabilities) == 0:
+        #     if self.stabilities[0, i, 0] > 0.5:
+        #         box_a.color = (255,0,0)
+        if self.predicted_stability:
+            if self.stabilities[0,0,0] > 0.5:
+                glVertex2f(self.dropped_object.body.position[0], self.dropped_object.body.position[1])
+            for (i, box) in enumerate(self.flat_boxes):
+                if self.stabilities[0, i+1, 0] > 0.5:
+                    glVertex2f(box.body.position[0], box.body.position[1])
+            
+        glEnd()
         
 
         # glBegin(GL_QUADS)
