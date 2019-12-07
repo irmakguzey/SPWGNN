@@ -130,16 +130,16 @@ class TowerCreator(pyglet.window.Window):
         ground_line.friction = 0.9
         self.space.add(ground_line)
 
-        # There is a restriction in the program that the number of boxes in one
-        # layer can never be higher than the number of boxes at the above layer
-        # Setting up the number of boxes at the layers:
-        layers = [random.randint(self.random_x_interval/2+1, self.random_x_interval)] # represents the number of boxes in each layer
-        n = self.n - layers[0] # number of boxes in total
+        # Setting up the number of boxes in each layer
+        layers = [random.randint(1, math.floor(self.n/2))]
+        n = self.n - layers[0]
         j = 1
         while n > 0:
-            r = random.randint(1, min(self.random_x_interval, n))
-            while r > layers[j-1]:
-                r = random.randint(1, min(self.random_x_interval, n))
+            if layers[j-1] == 1:
+                # If there is only one box then the boxes on top does not stay still with half of their center of mass staying on balance
+                r = 1
+            else:
+                r = random.randint(1, min(layers[j-1]+1, n))
             layers.append(r)
             n -= r
             j += 1
@@ -147,29 +147,8 @@ class TowerCreator(pyglet.window.Window):
 
         for (layer_num, layer_size) in enumerate(layers):
             self.boxes.append([])
-            for _ in range(layer_size):
-                x_pos = random.randint(self.left_edge, self.right_edge)
-                try_number = 0
-                try_exceed = 500
-                if layer_num == 0: # It is more important to have a good ground
-                    try_exceed = 1000
-                while try_number < try_exceed and (not self.lower_layers_check(x_pos, layer_num) or not self.same_layer_check(x_pos, layer_num)):
-                    # print('{}th box in {}th layer, {}th try'.format(box_index, layer_num, try_number))
-                    x_pos = random.randint(self.left_edge, self.right_edge)
-                    try_number += 1
-                if try_number == try_exceed:
-                    # print('number of tries exceeded :)')
-                    continue # If after try_exceed random tries object wasn't able to be put then it doesnt put it :)
-                y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
-                mass = 50.0
-                moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
-
-                body = pymunk.Body(mass, moment)
-                body.position = Vec2d(x_pos, y_pos)
-                shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
-                shape.friction = 0.3
-                self.space.add(body, shape)
-                self.boxes[layer_num].append(shape)
+            middle_x = self.get_middle(layer_num)
+            self.put_boxes(layer_num, layer_size, middle_x)
 
         self.flat_boxes = []
         for i in range(len(self.boxes)):
@@ -179,6 +158,36 @@ class TowerCreator(pyglet.window.Window):
         print('len(trajectories): {}'.format(len(self.trajectories)))
         if len(self.flat_boxes) == self.n:
             self.trajectories.append([])
+
+    # This method puts necessary number of boxes to the given layer by starting putting the box in the middle to the middle position
+    def put_boxes(self, layer_num, layer_size, middle_x):
+        for i in range(layer_size):
+            x_pos = middle_x + ( ((-1) ** i) * math.floor((i+1)/2) * (self.rect_width) )
+            y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
+
+            mass = 50.0
+            moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
+            body = pymunk.Body(mass, moment)
+            body.position = Vec2d(x_pos, y_pos)
+            shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
+            shape.friction = 0.3
+            self.space.add(body, shape)
+            self.boxes[layer_num].append(shape)
+
+    # This method returns the middle x position of the given layer 
+    # Middle x position is calculated by fionding the middle x point between left and right edge of the boxes 
+    def get_middle(self, layer_num):
+        if layer_num == 0:
+            return self.window_width / 2
+        right_edge = -10000 # The window width cannot be 10000 pixels for sure
+        left_edge = 10000
+        for box in self.boxes[layer_num-1]:
+            if box.body.position[0] > right_edge: 
+                right_edge = box.body.position[0]
+            if box.body.position[0] < left_edge:
+                left_edge = box.body.position[0]
+        print('in get_middle(layer_num={}) right_edge:{}, left_edge:{}'.format(layer_num, right_edge, left_edge))
+        return (left_edge + right_edge) / 2.0
 
     # Drop a random object to the tower, x position is randomly found
     def drop_object(self):
