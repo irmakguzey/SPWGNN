@@ -162,7 +162,14 @@ class TowerCreator(pyglet.window.Window):
     # This method puts necessary number of boxes to the given layer by starting putting the box in the middle to the middle position
     def put_boxes(self, layer_num, layer_size, middle_x):
         for i in range(layer_size):
-            x_pos = middle_x + ( ((-1) ** i) * math.floor((i+1)/2) * (self.rect_width) )
+            box_variation = int(self.rect_width * 0.20)
+            mean_range = self.rect_width + 2 * box_variation
+            box_mean = middle_x + ( ((-1) ** i) * math.floor((i+1)/2) * mean_range ) 
+            # print('box_variation: {}, box_mean: {}'.format(box_variation, box_mean))
+            if layer_size % 2 == 0:
+                x_pos = random.randint(box_mean - box_variation, box_mean + box_variation) + int(mean_range / 2)
+            else:
+                x_pos = random.randint(box_mean - box_variation, box_mean + box_variation)
             y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
 
             mass = 50.0
@@ -175,7 +182,8 @@ class TowerCreator(pyglet.window.Window):
             self.boxes[layer_num].append(shape)
 
     # This method returns the middle x position of the given layer 
-    # Middle x position is calculated by fionding the middle x point between left and right edge of the boxes 
+    # Middle x is calculated as the middle of x position of left side of the rectangle on the left most position
+    # and right side of the rectangle on the right most position at the layer below
     def get_middle(self, layer_num):
         if layer_num == 0:
             return self.window_width / 2
@@ -186,8 +194,7 @@ class TowerCreator(pyglet.window.Window):
                 right_edge = box.body.position[0]
             if box.body.position[0] < left_edge:
                 left_edge = box.body.position[0]
-        print('in get_middle(layer_num={}) right_edge:{}, left_edge:{}'.format(layer_num, right_edge, left_edge))
-        return (left_edge + right_edge) / 2.0
+        return int((left_edge + right_edge) / 2)
 
     # Drop a random object to the tower, x position is randomly found
     def drop_object(self):
@@ -203,8 +210,6 @@ class TowerCreator(pyglet.window.Window):
         shape.friction = 0.3
         self.space.add(body, shape)
         self.dropped_object = shape
-
-       
 
     # This function returns an array (n_objects), indicating the stability of each object
     # This is called at the of the drop_object
@@ -239,36 +244,6 @@ class TowerCreator(pyglet.window.Window):
 
         self.stabilities = self.gnn_model.predict({'objects': boxes[0:1,:,:], 'sender_relations': val_sender_relations,
                                                     'receiver_relations': val_receiver_relations, 'propagation': propagation})
-
-    # This method checks whether a box is stable or not
-    # If the layer is bigger than 0, then it checks whether there are two 
-    # boxes under the box or whether 
-    # This method only looks to the layers above the box not to once on the same level
-    def lower_layers_check(self, x, layer):
-        if layer == 0:
-            return True
-        lower_boxes = self.boxes[layer-1]
-        # Check whether there is a box that under this one which can cary it by itself
-        for first_box in lower_boxes:
-            first_box_pos = first_box.body.position
-            if abs(first_box_pos[0] - x) < self.rect_width/2: # means that box under can carry the box to come by itself
-                return True
-            if abs(first_box_pos[0] - x) < self.rect_width: # if this is the case box to come look for another box as well to carry it
-                for second_box in lower_boxes:
-                    if second_box == first_box:
-                        continue
-                    second_box_pos = second_box.body.position
-                    if abs(second_box_pos[0] - x) < self.rect_width:
-                        return True
-        return False
-
-    # Check whether there is enough place for the box 
-    def same_layer_check(self, x, layer):
-        same_level_boxes = self.boxes[layer]
-        for box in same_level_boxes:
-            if abs(box.body.position[0] - x) < self.rect_width:
-                return False
-        return True
 
     def update(self, dt):
         step_dt = 1/250.
@@ -317,8 +292,6 @@ class TowerCreator(pyglet.window.Window):
         self.space.debug_draw(self.draw_options)
         
         # Draw lines between boxes with relationship between
-        
-
         for (i,box_a) in enumerate(self.flat_boxes):
             glBegin(GL_LINES)
             for box_b in self.flat_boxes:
@@ -350,19 +323,6 @@ class TowerCreator(pyglet.window.Window):
                     glVertex2f(box.body.position[0], box.body.position[1])
             
         glEnd()
-        
-
-        # glBegin(GL_QUADS)
-        # # if the stability is larger than 0.5, then color it to red
-        # for (i, box) in enumerate(self.flat_boxes):
-        #     print('stability for ith box is: stabilities[0,i,0]: {}'.format(self.stabilities[0,i,0]))
-        #     if self.stabilities[0,i,0] > 0.5:
-        #         # glColor3i(255, 0, 0)
-        #         # center = Vec2d(box.body.position[0], box.body.position[1])
-        #         # left_top = Vec2d(center.x - self.rect_)
-        #         box.color = (255, 0, 0)
-        
-
             
 
 # This script runs the model and saves the trajectories if wanted
