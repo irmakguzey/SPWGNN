@@ -139,7 +139,17 @@ class TowerCreator(pyglet.window.Window):
                 # If there is only one box then the boxes on top does not stay still with half of their center of mass staying on balance
                 r = 1
             else:
-                r = random.randint(1, min(layers[j-1]+1, n))
+                # In order to decrease the chance of having 1 the data is manipulated
+                # When a layer has one box only then the rest of the tower has one box at every layer as well that is why we want the system to
+                # avoid giving 1 to a layer as much as possible
+                fitter = 3
+                pre_r = random.randint(1, fitter * min(layers[j-1]+1, n))
+                if pre_r <= fitter and pre_r != 1:
+                    r = random.randint(min(layers[j-1]+1, n, 2), min(layers[j-1]+1, n))
+                elif pre_r > fitter:
+                    r = math.floor(pre_r / fitter)
+                else:
+                    r = pre_r # pre_r == 1
             layers.append(r)
             n -= r
             j += 1
