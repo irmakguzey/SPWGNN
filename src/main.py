@@ -21,14 +21,14 @@ def calculate_stability(boxes):
 				temp_y[t,o,0] = 1.0
 	return temp_y
 
-def train_gnn():
+def train_gnn(n, N, random_str):
 	# Get the data and train the model
-	n_objects = 7 # 6+1
+	n_objects = n+1 # 6+1
 	object_dim = 2
 	n_of_rel_type = 1 # for now we only have the distance relation
 	n_relations = n_objects*(n_objects-1)
-	n_of_traj = 1000
-	random_string = 'HbZ7clsI'
+	n_of_traj = N
+	random_string = random_str
 
 	prop_net = PropagationNetwork()
 	first_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
@@ -81,10 +81,11 @@ def train_gnn():
 																																	y.shape))
 	print('y is: {}'.format(y[50:100,:,0]))
 
+	boxes = boxes/relation_threshold
 	first_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
 						{'target': y},
-						batch_size=64,
-						epochs=50,
+						batch_size=32,
+						epochs=250,
 						validation_split=0.2,
 						shuffle=True,
 						verbose=1)
@@ -104,9 +105,10 @@ def train_gnn():
 	# This script reads the saved trajectory, trains the graph neural network
 	# Runs in Python3
 if __name__ == '__main__':
-	n = int(input('Please enter the number of rectangles you want: '))
-	N = 1
+	n = 6
+	N = 10000
+	random_string = 'HTxmGdZF'
 
-	first_model = train_gnn()
+	first_model = train_gnn(n, N, random_string)
 	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=first_model)
 	towerCreator.run()
