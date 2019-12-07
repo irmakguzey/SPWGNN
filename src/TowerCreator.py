@@ -176,6 +176,7 @@ class TowerCreator(pyglet.window.Window):
             for j in range(len(self.boxes[i])):
                 self.flat_boxes.append(self.boxes[i][j])
         print('len(flat_boxes): {}'.format(len(self.flat_boxes)))
+        print('len(trajectories): {}'.format(len(self.trajectories)))
         if len(self.flat_boxes) == self.n:
             self.trajectories.append([])
 
@@ -208,8 +209,8 @@ class TowerCreator(pyglet.window.Window):
         for o in range(n_objects):
             t = len(self.trajectories)-1
             print('len(self.trajectories[0]): {}, o: {}'.format(len(self.trajectories[0]), o))
-            boxes[0,o,0] = self.trajectories[t][o][0][0]
-            boxes[0,o,1] = self.trajectories[t][o][0][1]
+            boxes[0,o,0] = self.trajectories[t][o][0][0] / 170.0
+            boxes[0,o,1] = self.trajectories[t][o][0][1] / 170.0
 
         val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
         val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
@@ -355,19 +356,19 @@ class TowerCreator(pyglet.window.Window):
 
             
 
-    # This script runs the model and saves the trajectories if wanted
-    # Supposed to run in Python2
-    # if __name__ == '__main__':
-    # 	n = int(input('Please enter the number of rectangles you want: '))
-    # 	N = 1
-    # 	self_run_str = raw_input('Would you like to interract with the app or let the app run itself and have trajectory? [y/n]')
-    # 	print(self_run_str)
+# This script runs the model and saves the trajectories if wanted
+# Supposed to run in Python2
+if __name__ == '__main__':
+    n = int(input('Please enter the number of rectangles you want: '))
+    N = 1
+    self_run_str = raw_input('Would you like to interract with the app or let the app run itself and have trajectory? [y/n]')
+    print(self_run_str)
 
-    # 	if self_run_str == 'y':
-    # 		N = int(input('Please enter the number of iterations you want for this n: '))
-    # 		self_run = True
-    # 	else:
-    # 		self_run = False
+    if self_run_str == 'y':
+        N = int(input('Please enter the number of iterations you want for this n: '))
+        self_run = True
+    else:
+        self_run = False
 
-    # 	towerCreator = TowerCreator(n, N, self_run)
-    # 	towerCreator.run()
+    towerCreator = TowerCreator(n, N, self_run)
+    towerCreator.run()
