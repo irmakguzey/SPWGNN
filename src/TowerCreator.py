@@ -206,6 +206,32 @@ class TowerCreator(pyglet.window.Window):
                 left_edge = box.body.position[0]
         return int((left_edge + right_edge) / 2)
 
+    # Returns the x position of the current center of mass of self.boxes
+    def get_center_of_mass_x(self):
+        center_of_mass = 0
+        for j in range(len(self.boxes)):
+            for box in self.boxes[j]:
+                center_of_mass += box.body.position[0] / self.n
+        return center_of_mass
+
+    # This method returns True or False indicating whether the given x will cause the system's center of mass get out of the system's grounding boxes
+    def is_x_stable(self, layer_num, x)
+        self.boxes[layer_num].append(x)
+        com = self.get_center_of_mass_x()
+        self.boxes[layer_num].pop() # remove the x
+
+        # Calculate the left most and right most points which when the center of mass is between these two values the system is stable
+        right_edge = -10000 # The window width cannot be 10000 pixels for sure
+        left_edge = 10000
+        for box in self.boxes[0]:
+            if box.body.position[0] > right_edge: 
+                right_edge = box.body.position[0]
+            if box.body.position[0] < left_edge:
+                left_edge = box.body.position[0]
+
+        return (com > left_edge and com < right_edge)
+
+
     # Drop a random object to the tower, x position is randomly found
     def drop_object(self):
         print('in drop_object')
