@@ -130,6 +130,12 @@ class TowerCreator(pyglet.window.Window):
         ground_line.friction = 0.9
         self.space.add(ground_line)
 
+        # Setting up the orientation of the center of the mass
+        # At some trajectories we want the boxes to build up towards right, at some of them towards left
+        # left < 0.5, right > 0.5
+        self.orientation = random.random() > 0.5
+        print('self.orientation: {}'.format(self.orientation))
+
         # Setting up the number of boxes in each layer
         layers = [random.randint(1, math.floor(self.n/2))]
         n = self.n - layers[0]
@@ -144,12 +150,13 @@ class TowerCreator(pyglet.window.Window):
                 # avoid giving 1 to a layer as much as possible
                 fitter = 3
                 pre_r = random.randint(1, fitter * min(layers[j-1]+1, n))
-                if pre_r <= fitter and pre_r != 1:
-                    r = random.randint(min(layers[j-1]+1, n, 2), min(layers[j-1]+1, n))
-                elif pre_r > fitter:
+                if pre_r <= fitter:
+                    if pre_r != 1:
+                        r = random.randint(min(layers[j-1]+1, n, 2), min(layers[j-1]+1, n))
+                    else:
+                        r = pre_r
+                else: # pre_r > fitter
                     r = math.floor(pre_r / fitter)
-                else:
-                    r = pre_r # pre_r == 1
             layers.append(r)
             n -= r
             j += 1
@@ -172,21 +179,31 @@ class TowerCreator(pyglet.window.Window):
     # This method puts necessary number of boxes to the given layer by starting putting the box in the middle to the middle position
     def put_boxes(self, layer_num, layer_size, middle_x):
         for i in range(layer_size):
-            box_variation = int(self.rect_width * 0.20)
+            box_variation = int(self.rect_width * 0.25)
             mean_range = self.rect_width + 2 * box_variation
             box_mean = middle_x + ( ((-1) ** i) * math.floor((i+1)/2) * mean_range ) 
-            # print('box_variation: {}, box_mean: {}'.format(box_variation, box_mean))
             if layer_size % 2 == 0:
-                x_pos = random.randint(box_mean - box_variation, box_mean + box_variation) + int(mean_range / 2)
+                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
             else:
-                x_pos = random.randint(box_mean - box_variation, box_mean + box_variation)
+                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
             y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
 
+            # Move the box a little towards the orientation
+            # If orientation is 1, random part will be added (moving x towards left)
+            # otherwise random part will be removed which will make x move towards right
             mass = 50.0
             moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
             body = pymunk.Body(mass, moment)
             body.position = Vec2d(x_pos, y_pos)
             shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
+            while not self.is_box_stable(layer_num, shape):
+                # If orientation is 0, random part will be added (moving x towards left)
+                # otherwise random part will be removed which will make x move towards right
+                x_pos = x_pos + ((-1) ** self.orientation * random.randint(0, int(box_variation / 2)))
+                body = pymunk.Body(mass, moment)
+                body.position = Vec2d(x_pos, y_pos)
+                shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))  
+
             shape.friction = 0.3
             self.space.add(body, shape)
             self.boxes[layer_num].append(shape)
@@ -209,28 +226,36 @@ class TowerCreator(pyglet.window.Window):
     # Returns the x position of the current center of mass of self.boxes
     def get_center_of_mass_x(self):
         center_of_mass = 0
+
+        num_of_boxes = 0
+        for j in range(len(self.boxes)):
+            for i in range(len(self.boxes[j])):
+                num_of_boxes += 1
+
         for j in range(len(self.boxes)):
             for box in self.boxes[j]:
-                center_of_mass += box.body.position[0] / self.n
+                center_of_mass += int(box.body.position[0] / num_of_boxes)
         return center_of_mass
 
     # This method returns True or False indicating whether the given x will cause the system's center of mass get out of the system's grounding boxes
-    def is_x_stable(self, layer_num, x)
-        self.boxes[layer_num].append(x)
+    def is_box_stable(self, layer_num, box):
+        if layer_num == 0:
+            return True
+            
+        self.boxes[layer_num].append(box)
         com = self.get_center_of_mass_x()
-        self.boxes[layer_num].pop() # remove the x
+        self.boxes[layer_num].pop() # remove the box
 
         # Calculate the left most and right most points which when the center of mass is between these two values the system is stable
         right_edge = -10000 # The window width cannot be 10000 pixels for sure
         left_edge = 10000
-        for box in self.boxes[0]:
-            if box.body.position[0] > right_edge: 
-                right_edge = box.body.position[0]
-            if box.body.position[0] < left_edge:
-                left_edge = box.body.position[0]
+        for b in self.boxes[0]:
+            if b.body.position[0] + int(self.rect_width / 2) > right_edge: 
+                right_edge = b.body.position[0] + int(self.rect_width / 2)
+            if b.body.position[0] - int(self.rect_width / 2) < left_edge:
+                left_edge = b.body.position[0] - int(self.rect_width / 2)
 
         return (com > left_edge and com < right_edge)
-
 
     # Drop a random object to the tower, x position is randomly found
     def drop_object(self):
@@ -348,9 +373,6 @@ class TowerCreator(pyglet.window.Window):
         glPointSize(50)
         glBegin(GL_POINTS)
         glColor3i(255, 0, 0)
-        # if not len(self.stabilities) == 0:
-        #     if self.stabilities[0, i, 0] > 0.5:
-        #         box_a.color = (255,0,0)
         if self.predicted_stability:
             if self.stabilities[0,0,0] > 0.5:
                 glVertex2f(self.dropped_object.body.position[0], self.dropped_object.body.position[1])
