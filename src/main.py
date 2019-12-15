@@ -31,9 +31,9 @@ def train_gnn(n, N, random_str):
 	random_string = random_str
 
 	prop_net = PropagationNetwork()
-	first_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
+	second_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
 
-	json_file = open('data/first_model_{}_{}_{}.txt'.format(n_objects-1, n_of_traj, random_string))
+	json_file = open('data/second_model_{}_{}_{}.txt'.format(n_objects-1, n_of_traj, random_string))
 	data = json.load(json_file)
 	json_file.close()
 
@@ -82,7 +82,7 @@ def train_gnn(n, N, random_str):
 	print('y is: {}'.format(y[50:100,:,0]))
 
 	boxes = boxes/relation_threshold
-	first_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
+	second_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
 						{'target': y},
 						batch_size=32,
 						epochs=250,
@@ -93,22 +93,22 @@ def train_gnn(n, N, random_str):
 	# TODO use data generator instead of actual fit function
 	# train_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_train,relation_threshold,True,64)
 	# valid_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_val,relation_threshold,False,128)
-	# first_model.fit_generator(generator=train_gen,
+	# second_model.fit_generator(generator=train_gen,
 	#                           validation_data=valid_gen,
 	#                           epochs=100,
 	#                           use_multiprocessing=True,
 	#                           workers=32,
 	#                           verbose=1)
 
-	return first_model
+	return second_model
 
 	# This script reads the saved trajectory, trains the graph neural network
 	# Runs in Python3
 if __name__ == '__main__':
-	n = 6
-	N = 1000
-	random_string = 'HbZ7clsI'
+	n = 7
+	N = 5000
+	random_string = 'AMx5CHps'
 
-	first_model = train_gnn(n, N, random_string)
-	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=first_model)
+	second_model = train_gnn(n, N, random_string)
+	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=second_model)
 	towerCreator.run()
