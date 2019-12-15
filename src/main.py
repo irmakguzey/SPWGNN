@@ -106,8 +106,8 @@ def train_gnn(n, N, random_str):
 	# Runs in Python3
 if __name__ == '__main__':
 	n = 6
-	N = 10000
-	random_string = 'HTxmGdZF'
+	N = 1000
+	random_string = 'HbZ7clsI'
 
 	first_model = train_gnn(n, N, random_string)
 	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=first_model)

@@ -148,7 +148,7 @@ class TowerCreator(pyglet.window.Window):
                 # In order to decrease the chance of having 1 the data is manipulated
                 # When a layer has one box only then the rest of the tower has one box at every layer as well that is why we want the system to
                 # avoid giving 1 to a layer as much as possible
-                fitter = 3
+                fitter = 2
                 pre_r = random.randint(1, fitter * min(layers[j-1]+1, n))
                 if pre_r <= fitter:
                     if pre_r != 1:
@@ -162,6 +162,7 @@ class TowerCreator(pyglet.window.Window):
             j += 1
         print('number of boxes in each layer is: {}'.format(layers))
 
+        # Put the boxes on top of each other
         for (layer_num, layer_size) in enumerate(layers):
             self.boxes.append([])
             middle_x = self.get_middle(layer_num)
@@ -182,10 +183,17 @@ class TowerCreator(pyglet.window.Window):
             box_variation = int(self.rect_width * 0.25)
             mean_range = self.rect_width + 2 * box_variation
             box_mean = middle_x + ( ((-1) ** i) * math.floor((i+1)/2) * mean_range ) 
-            if layer_size % 2 == 0:
-                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
+            # If the layer size is one then it is more free to put the box wherever it wants 
+            # between left and right edge
+            if layer_size == 1 and layer_num != 0:
+                # this method returns the middle of leftmost and rightmost rectangles
+                right_edge, left_edge = self.get_right_left_edge(layer_num-1)
+                x_pos = random.randint(int(left_edge-self.rect_width/2), int(right_edge+self.rect_width/2))
             else:
-                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
+                if layer_size % 2 == 0:
+                    x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
+                else:
+                    x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
             y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
 
             # Move the box a little towards the orientation
@@ -214,14 +222,19 @@ class TowerCreator(pyglet.window.Window):
     def get_middle(self, layer_num):
         if layer_num == 0:
             return self.window_width / 2
+        right_edge, left_edge = self.get_right_left_edge(layer_num-1)
+        return int((left_edge + right_edge) / 2)
+
+    # returns the right and left edge of the given layer
+    def get_right_left_edge(self, layer_num):
         right_edge = -10000 # The window width cannot be 10000 pixels for sure
         left_edge = 10000
-        for box in self.boxes[layer_num-1]:
+        for box in self.boxes[layer_num]:
             if box.body.position[0] > right_edge: 
                 right_edge = box.body.position[0]
             if box.body.position[0] < left_edge:
                 left_edge = box.body.position[0]
-        return int((left_edge + right_edge) / 2)
+        return right_edge, left_edge
 
     # Returns the x position of the current center of mass of self.boxes
     def get_center_of_mass_x(self):
@@ -259,18 +272,16 @@ class TowerCreator(pyglet.window.Window):
 
     # Drop a random object to the tower, x position is randomly found
     def drop_object(self):
-        print('in drop_object')
-        x_pos = random.randint(self.left_edge, self.right_edge)
         layer_num = len(self.boxes)
-        y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
-        mass = 50.0
-        moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
-        body = pymunk.Body(mass, moment)
-        body.position = Vec2d(x_pos, y_pos)
-        shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
-        shape.friction = 0.3
-        self.space.add(body, shape)
-        self.dropped_object = shape
+        self.boxes.append([])
+        middle_x = self.get_middle(layer_num)
+        self.put_boxes(layer_num=layer_num, layer_size=1, middle_x=middle_x)
+        self.dropped_object = self.boxes[layer_num][0]
+
+    def drop_to_demolish(self):
+        print('in drop_to_demolish')
+        middle_x = self.get_middle(layer_num)
+        self.put_boxes(layer_num, layer_size, middle_x)
 
     # This function returns an array (n_objects), indicating the stability of each object
     # This is called at the of the drop_object
@@ -341,6 +352,7 @@ class TowerCreator(pyglet.window.Window):
             self.create_world()
         elif symbol == key.DOWN:
             self.drop_object() # Dropping an object from the highest part of the tower
+            # self.drop_to_demolish()
         elif symbol == key.P:
             self.draw_drop_object_trajectory()
 
@@ -388,7 +400,7 @@ class TowerCreator(pyglet.window.Window):
 if __name__ == '__main__':
     n = int(input('Please enter the number of rectangles you want: '))
     N = 1
-    self_run_str = raw_input('Would you like to interract with the app or let the app run itself and have trajectory? [y/n]')
+    self_run_str = raw_input('Autorun and take trajectory? [y/n]')
     print(self_run_str)
 
     if self_run_str == 'y':
