@@ -101,7 +101,10 @@ class TowerCreator(pyglet.window.Window):
         letters_and_digits = string.ascii_letters + string.digits
         random_string = ''.join(random.choice(letters_and_digits) for i in range(8))
         # dump the trajectories into a file
-        file_name = 'data/jenga_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
+        if self.jenga:
+            file_name = 'data/jenga_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
+        else:
+            file_name = 'data/second_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
         with open(file_name, 'w+') as outfile:
             json.dump(self.trajectories, outfile)
 
@@ -335,6 +338,43 @@ class TowerCreator(pyglet.window.Window):
         self.space.remove(random_object) # remove the object from the space
         self.removed_object = True
 
+    # It tries to remove each of the objects and choose the one that will demolish the system
+    def remove_to_demolish(self):
+        if (len(self.trajectories[-1]) == 0):
+            for _ in range(self.n-1):
+                self.trajectories[-1].append([])
+
+        # box_stabilities[remove_index] = stability: holds the stability of the system when the box in remove_index is removed
+        box_stabilities = np.zeros(self.n)
+        for remove_index in range(self.n):
+            stabilitiy_sum = 0
+            for box_index,box in enumerate(self.flat_boxes): # put the positions of the objects properly
+                if box_index < remove_index:
+                    self.trajectories[-1][box_index].append([box.body.position[0],box.body.position[1]])
+                elif box_index > remove_index:
+                    self.trajectories[-1][box_index-1].append([box.body.position[0],box.body.position[1]])
+
+            # predict stabilities for the box in remove_index removed
+            self.predict_stabilities()
+
+            for s in self.stabilities[0]:
+                stability_sum += s[0]
+            box_stabilities[remove_index] = stability_sum
+
+        self.trajectories[-1] = []
+        print('box_stabilities: {}'.format(box_stabilities))
+        remove_index = np.argmin(box_stabilities)
+        remove_object = self.flat_boxes[remove_index]
+        self.flat_boxes.remove(remove_object) # remove that object from self.flat_boxes
+        for layer in self.boxes: # remove the object from self.boxes
+            if remove_object in layer:
+                layer.remove(remove_object)
+                if len(layer) == 0:
+                    self.boxes.remove(layer)
+        self.space.remove(remove_object) # remove the object from the space
+        self.removed_object = True
+
+
     # Looks at the trajectory and calculates the stabilities of each object
     # trajectory = self.trajectories[i] == (n_of_objects, n_of_frame, (x,y))
     def calculate_stability(self, trajectory_index):
@@ -483,12 +523,16 @@ class TowerCreator(pyglet.window.Window):
 
         elif symbol == key.P:
             stabilities = self.calculate_stability(-1)
+            print('stabilities calculated: {}'.format(stabilities))
 
         elif symbol == key.D and self.demolish:
             self.drop_to_demolish() # drop an object to the top of the tower to demolish the tower
 
         elif symbol == key.J and self.jenga:
             self.remove_object() # removes one random object from the system
+        
+        elif symbol == key.K and self.jenga and self.demolish:
+            self.remove_to_demolish() # removes the object that is expected to have the least stability
 
         elif symbol == key.S:
             self.save_trajectories()
@@ -508,7 +552,7 @@ if __name__ == '__main__':
     # else:
     #     self_run = False
 
-    # towerCreator = TowerCreator(n, N, self_run)
+    towerCreator = TowerCreator(n=7, N=5000, self_run=True)
     # towerCreator = TowerCreator(n=7, jenga=True)
-    towerCreator = TowerCreator(n=7, N=5000, self_run=True, jenga=True)
+    # towerCreator = TowerCreator(n=7, N=5000, self_run=True, jenga=True)
     towerCreator.run()

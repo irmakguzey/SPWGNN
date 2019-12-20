@@ -11,7 +11,7 @@ def calculate_stability(boxes):
 	n_objects = len(boxes[0][0])
 	y = np.zeros((n_of_traj, n_objects, 1)) # 1 is for making it 3 dimensional 
 	frame_threshold = n_of_frame # Number of frames in the end to look for stability 
-	stability_threshold = 0.5 # The distance that will indicate that the corresponding object is stopping between frames
+	stability_threshold = 0.1 # The distance that will indicate that the corresponding object is stopping between frames
 	for o in range(n_objects):
 		for t in range(n_of_traj):
 			pos_change = 0
@@ -39,19 +39,25 @@ def train_gnn(n, N, file_str, is_jenga=False):
 	json_file.close()
 
 	n_object_attr_dim = 2 # x position, y position
-	# data = [d for d in data if len(d) != 0] # TODO look into this bug, for some reason some trajectories had 0 objects in them
+	data = [d for d in data if len(d) != 0] # TODO look into this bug, for some reason some trajectories had 0 objects in them
 	n_of_traj = len(data)
 	f_lengths = [len(t[0]) for t in data]
-	n_of_frame = min(f_lengths)
+	n_of_frame = max(f_lengths)
 
 	boxes = np.zeros((n_of_traj, n_of_frame, n_objects, n_object_attr_dim))
-
+	print('boxes.shape: {}'.format(boxes.shape))
 	# Fix the data into a numpy array
 	for t in range(n_of_traj):
 		for o in range(n_objects):
+			max_f = len(data[t][o])-1 # there are lots of difference at the number of frames between trajectories
 			for f in range(n_of_frame):
-				boxes[t][f][o][0] = data[t][o][f][0]
-				boxes[t][f][o][1] = data[t][o][f][1]
+				if f > max_f:
+					boxes[t][f][o][0] = data[t][o][max_f][0] # when the frame of the current data is exceeded, the last position of the objects are saved 
+					boxes[t][f][o][1] = data[t][o][max_f][1]
+				else:
+					boxes[t][f][o][0] = data[t][o][f][0]
+					boxes[t][f][o][1] = data[t][o][f][1]
+
 
 	val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
 	val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
@@ -103,13 +109,14 @@ def train_gnn(n, N, file_str, is_jenga=False):
 
 if __name__ == '__main__':
 	n = 7
-	N = 1000
-	random_string = '38qymFKc'
+	N = 5000
+	# random_string = '38qymFKc'
 	# file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, n_of_traj, random_string)
-	file_str = 'data/jenga_model_7_1000_38qymFKc.txt'
+	file_str = 'data/jenga_model_7_5000_g7JLyo0R.txt'
 
+	# gnn_model = train_gnn(n, N, file_str)
 	gnn_model = train_gnn(n, N, file_str, is_jenga=True)
-	# towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=gnn_model)
-	# towerCreator = TowerCreator(n, N, self_run=False, demolish=True, gnn_model=gnn_model)
+	# towerCreator = TowerCreator(n, N, predict_stability=True, gnn_model=gnn_model)
+	# towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
 	towerCreator = TowerCreator(n, N, predict_stability=True, jenga=True, gnn_model=gnn_model)
 	towerCreator.run()
