@@ -19,13 +19,15 @@ from pymunk import Vec2d
 import pymunk.pyglet_util
 
 class TowerCreator(pyglet.window.Window):
-    def __init__(self, n, N, self_run=False, predict_stability=False, demolish=False, gnn_model=None):
+    def __init__(self, n, N=0, self_run=False, predict_stability=False, demolish=False, jenga=False, gnn_model=None):
         self.n = n # Number of rectangles
         self.N = N # Number of iterations
         self.self_run = self_run
         self.predict_stability = predict_stability
         self.predicted_stability = False
         self.demolish = demolish
+        self.jenga = jenga
+        self.removed_object = False # Check whether the random object to remove in jenga model is removed or not
         self.gnn_model = gnn_model
         self.stabilities = []
 
@@ -73,19 +75,25 @@ class TowerCreator(pyglet.window.Window):
 
     def run_and_take_trajectory(self):
         for i in range(self.N):
-            pyglet.clock.schedule_once(self.callback, i, callback_type=0)
-            pyglet.clock.schedule_once(self.callback, i+0.2, callback_type=1)
+            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
+            if self.jenga:
+                pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_object')
+            else:
+                pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='drop_object')
+
         
-        pyglet.clock.schedule_once(self.callback, self.N, callback_type=2)
+        pyglet.clock.schedule_once(self.callback, self.N, callback_type='save_trajectories')
         pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
         print('*** scheduling over')
 
     def callback(self, dt, callback_type):
-        if callback_type == 0:
+        if callback_type == 'create_world':
             self.create_world()
-        elif callback_type == 1:
+        elif callback_type == 'drop_object':
             self.drop_object()
-        elif callback_type == 2:
+        elif callback_type == 'remove_object':
+            self.remove_object()
+        elif callback_type == 'save_trajectories':
             self.save_trajectories()
 
     def save_trajectories(self):
@@ -93,7 +101,7 @@ class TowerCreator(pyglet.window.Window):
         letters_and_digits = string.ascii_letters + string.digits
         random_string = ''.join(random.choice(letters_and_digits) for i in range(8))
         # dump the trajectories into a file
-        file_name = 'data/second_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
+        file_name = 'data/jenga_model_{}_{}_{}.txt'.format(self.n, self.N, random_string)
         with open(file_name, 'w+') as outfile:
             json.dump(self.trajectories, outfile)
 
@@ -106,6 +114,7 @@ class TowerCreator(pyglet.window.Window):
         self.dropped_object = None
         self.dropped_trajectory = [[],[]] # First element represents x trajectory, second: y
         self.predicted_stability = False
+        self.removed_object = False
 
         # Create the ground line
         ground_line = pymunk.Segment(self.space.static_body, Vec2d(20, self.bottom_edge), Vec2d(780, self.bottom_edge), 1)
@@ -167,7 +176,8 @@ class TowerCreator(pyglet.window.Window):
 
         if layer_num > 0 and layer_size == 1:
             right_edge, left_edge = self.get_right_left_edge(layer_num-1) 
-            x_pos = random.randint(int(left_edge), int(right_edge))
+            # to make the beginning of the towers a little more stable instad of going halft left half right, we go 0.3 left, 0.3 right...
+            x_pos = random.randint(int(left_edge)+int(self.rect_width * 0.2), int(right_edge)-int(self.rect_width * 0.2))
         else: 
             if layer_size % 2 == 0:
                 x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
@@ -310,6 +320,21 @@ class TowerCreator(pyglet.window.Window):
         self.boxes[layer_num].append(shape)
         self.dropped_object = self.boxes[layer_num][0]
 
+    # This method removes one random object from the system
+    def remove_object(self):
+        # print('before removal: self.flat_boxes: {}, self.boxes: {}'.format(self.flat_boxes, self.boxes))
+        random_index = random.randint(0, self.n-1) # get a random index to remove
+        random_object = self.flat_boxes[random_index] # get the corresponding random object
+        self.flat_boxes.remove(random_object) # remove that object from self.flat_boxes
+        for layer in self.boxes: # remove the object from self.boxes
+            if random_object in layer:
+                layer.remove(random_object)
+                if len(layer) == 0:
+                    self.boxes.remove(layer)
+        # print('after removal: self.flat_boxes: {}, self.boxes: {}'.format(self.flat_boxes, self.boxes))
+        self.space.remove(random_object) # remove the object from the space
+        self.removed_object = True
+
     # Looks at the trajectory and calculates the stabilities of each object
     # trajectory = self.trajectories[i] == (n_of_objects, n_of_frame, (x,y))
     def calculate_stability(self, trajectory_index):
@@ -376,21 +401,27 @@ class TowerCreator(pyglet.window.Window):
             x += step_dt
             self.space.step(step_dt)
 
-        if len(self.flat_boxes) == self.n:
-            if not self.dropped_object == None:
-                if len(self.trajectories[-1]) == 0:
-                    for _ in range(self.n+1):
-                        self.trajectories[-1].append([])
-                    
-                self.trajectories[-1][0].append([self.dropped_object.body.position[0],self.dropped_object.body.position[1]])
-                for i,box in enumerate(self.flat_boxes):
-                    self.trajectories[-1][i+1].append([box.body.position[0],box.body.position[1]])
+        if self.jenga and self.removed_object:
+            if len(self.trajectories[-1]) == 0:
+                for _ in range(self.n-1):
+                    self.trajectories[-1].append([])
+            for i,box in enumerate(self.flat_boxes): # the object is also removed from flat_boxes
+                self.trajectories[-1][i].append([box.body.position[0], box.body.position[1]])
 
-            if self.predict_stability and not self.predicted_stability:
-                if not self.dropped_object == None:
-                    self.predict_stabilities()
-                    print('self.stabilities: {}'.format(self.stabilities))
-                    self.predicted_stability = True
+        if not self.dropped_object == None:
+            if len(self.trajectories[-1]) == 0:
+                for _ in range(self.n+1):
+                    self.trajectories[-1].append([])
+                
+            self.trajectories[-1][0].append([self.dropped_object.body.position[0],self.dropped_object.body.position[1]])
+            for i,box in enumerate(self.flat_boxes):
+                self.trajectories[-1][i+1].append([box.body.position[0],box.body.position[1]])
+
+        if self.predict_stability and not self.predicted_stability:
+            if not self.dropped_object == None:
+                self.predict_stabilities()
+                print('self.stabilities: {}'.format(self.stabilities))
+                self.predicted_stability = True
 
     # This method returns true if two box is touching each other and false otherwise
     def there_is_relation(self, box_a, box_b):
@@ -399,15 +430,24 @@ class TowerCreator(pyglet.window.Window):
     def on_key_press(self, symbol, modifiers):
         if symbol == key.ESCAPE:
             self.event_loop.exit()
+
         elif symbol == key.SPACE:
             self.create_world()
+
         elif symbol == key.DOWN:
             self.drop_object() # Dropping an object from the highest part of the tower
+
         elif symbol == key.P:
             stabilities = self.calculate_stability(-1)
-            print('stabilities from calculate_stability is: {}'.format(stabilities))
+
         elif symbol == key.D and self.demolish:
             self.drop_to_demolish() # drop an object to the top of the tower to demolish the tower
+
+        elif symbol == key.J and self.jenga:
+            self.remove_object() # removes one random object from the system
+
+        elif symbol == key.S:
+            self.save_trajectories()
         
 
     def on_draw(self):
@@ -452,16 +492,18 @@ class TowerCreator(pyglet.window.Window):
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-    n = int(input('Please enter the number of rectangles you want: '))
-    N = 1
-    self_run_str = raw_input('Autorun and take trajectory? [y/n]')
-    print(self_run_str)
+    # n = int(input('Please enter the number of rectangles you want: '))
+    # N = 1
+    # self_run_str = raw_input('Autorun and take trajectory? [y/n]')
+    # print(self_run_str)
 
-    if self_run_str == 'y':
-        N = int(input('Please enter the number of iterations you want for this n: '))
-        self_run = True
-    else:
-        self_run = False
+    # if self_run_str == 'y':
+    #     N = int(input('Please enter the number of iterations you want for this n: '))
+    #     self_run = True
+    # else:
+    #     self_run = False
 
-    towerCreator = TowerCreator(n, N, self_run)
+    # towerCreator = TowerCreator(n, N, self_run)
+    # towerCreator = TowerCreator(n=7, jenga=True)
+    towerCreator = TowerCreator(n=7, N=1000, self_run=True, jenga=True)
     towerCreator.run()
