@@ -52,30 +52,12 @@ class TowerCreator(pyglet.window.Window):
         self.relation_threshold = math.sqrt(self.rect_width ** 2 + self.rect_height ** 2)
         print(self.relation_threshold)
 
-        self.left_edge = 100 # the left edge of the x point i want to put rectangles to
-        self.right_edge = 700 # The space for putting the rectangles is from x (100,700)
-        self.spacing = self.right_edge - self.left_edge 
         self.bottom_edge = 70
-
-        # X positions of the rectangles are chosen with not a random position but
-        # with a random interval to put the box
-        # And when a random interval is chosen by a box option for that place
-        # is removed
-        # ex: if the left/right edges and the interval is as above (100,700 and width is 100)
-        # then the rects can be at x: 100, 200, 300,400,500, 600 or 700.
-        self.random_x_interval = int(self.spacing / self.rect_width)
 
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.draw_options.flags = self.draw_options.DRAW_SHAPES
         self.draw_options.collision_point_color = (10, 20, 30, 40)
 
-        # trajectories will look like: 
-        # dropped_object: {X: [...], Y: [...]}, boxes: [ {X: [...], Y: [...]}, {X: [...], Y: [...]}, ... ]
-        # self.trajectories = {'dropped_object': {'X':[], 'Y':[]}}
-        # self.trajectories['boxes'] = [{'X':[], 'Y':[]} for i in range(self.n)]
-        # print('self.trajectories is: {}'.format(self.trajectories))
-        # trajectories will look like: 
-        # [trajectory#N):[(object#1):[(X):[...], (Y):[...]], (object#n):[(X):[], (Y):[]]...], trajectory#N+1:[.........], ...]
         self.trajectories = []
 
         if self.self_run:
@@ -183,10 +165,14 @@ class TowerCreator(pyglet.window.Window):
         mean_range = self.rect_width + 2 * box_variation
         box_mean = middle_x + ( ((-1) ** index_in_layer) * math.floor((index_in_layer+1)/2) * mean_range ) 
 
-        if layer_size % 2 == 0:
-            x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
-        else:
-            x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
+        if layer_num > 0 and layer_size == 1:
+            right_edge, left_edge = self.get_right_left_edge(layer_num-1) 
+            x_pos = random.randint(int(left_edge), int(right_edge))
+        else: 
+            if layer_size % 2 == 0:
+                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
+            else:
+                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
 
         y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
 
