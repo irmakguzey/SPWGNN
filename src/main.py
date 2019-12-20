@@ -31,7 +31,7 @@ def train_gnn(n, N, random_str):
 	random_string = random_str
 
 	prop_net = PropagationNetwork()
-	second_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
+	gnn_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
 
 	json_file = open('data/second_model_{}_{}_{}.txt'.format(n_objects-1, n_of_traj, random_string))
 	data = json.load(json_file)
@@ -67,22 +67,16 @@ def train_gnn(n, N, random_str):
 				val_sender_relations[inzz, m, cnt] = 1.0   
 				cnt += 1
 
-	# train_size = 7/10 # 70% of the data is reserved for training
-	# np.random.shuffle(boxes)
-	# train_len = int(n_of_traj * train_size)
-	# boxes_train = boxes[0:train_len,:,:,:]
-	# boxes_val = boxes[train_len:,:,:,:]
-
 	y = calculate_stability(boxes)
 	print('objects.shape: {}, sender_relations.shape: {}, receiver_relations.shape: {}, propagation.shape: {}. y.shape: {}'.format(boxes[:,0,:,:].shape,
 																																	val_sender_relations.shape,
 																																	val_receiver_relations.shape,
 																																	propagation.shape,
 																																	y.shape))
-	print('y is: {}'.format(y[50:100,:,0]))
+	# print('y is: {}'.format(y[50:100,:,0]))
 
 	boxes = boxes/relation_threshold
-	second_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
+	gnn_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
 						{'target': y},
 						batch_size=32,
 						epochs=250,
@@ -100,15 +94,17 @@ def train_gnn(n, N, random_str):
 	#                           workers=32,
 	#                           verbose=1)
 
-	return second_model
+	return gnn_model
 
 	# This script reads the saved trajectory, trains the graph neural network
 	# Runs in Python3
+
 if __name__ == '__main__':
 	n = 7
-	N = 5000
-	random_string = 'AMx5CHps'
+	N = 1000
+	random_string = '3Lmd9cHD'
 
-	second_model = train_gnn(n, N, random_string)
-	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=second_model)
+	gnn_model = train_gnn(n, N, random_string)
+	# towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=gnn_model)
+	towerCreator = TowerCreator(n, N, self_run=False, predict_stability=False, demolish=True, gnn_model=gnn_model)
 	towerCreator.run()

@@ -19,17 +19,18 @@ from pymunk import Vec2d
 import pymunk.pyglet_util
 
 class TowerCreator(pyglet.window.Window):
-    def __init__(self, n, N, self_run=False, predict_stability=False, gnn_model=None):
+    def __init__(self, n, N, self_run=False, predict_stability=False, demolish=False, gnn_model=None):
         self.n = n # Number of rectangles
         self.N = N # Number of iterations
         self.self_run = self_run
         self.predict_stability = predict_stability
         self.predicted_stability = False
+        self.demolish = demolish
         self.gnn_model = gnn_model
         self.stabilities = []
 
         self.window_width = 800
-        self.window_height = 600
+        self.window_height = 800
 
         self.event_loop = pyglet.app.EventLoop()
         pyglet.window.Window.__init__(self, self.window_width,
@@ -116,7 +117,6 @@ class TowerCreator(pyglet.window.Window):
 
     def create_world(self):
         print('in create_world')
-        # print('len(trajectories): {}'.format(len(self.trajectories)))
         self.space = pymunk.Space()
         self.space.gravity = Vec2d(0., -900.)
         self.space.sleep_time_threshold = 0.9
@@ -148,15 +148,12 @@ class TowerCreator(pyglet.window.Window):
                 # In order to decrease the chance of having 1 the data is manipulated
                 # When a layer has one box only then the rest of the tower has one box at every layer as well that is why we want the system to
                 # avoid giving 1 to a layer as much as possible
-                fitter = 2
-                pre_r = random.randint(1, fitter * min(layers[j-1]+1, n))
-                if pre_r <= fitter:
-                    if pre_r != 1:
-                        r = random.randint(min(layers[j-1]+1, n, 2), min(layers[j-1]+1, n))
-                    else:
-                        r = pre_r
-                else: # pre_r > fitter
-                    r = math.floor(pre_r / fitter)
+                r = random.randint(1, min(layers[j-1], n))
+                i = 0
+                while r == 1 and n != 1 and i < 3:
+                    r = random.randint(1, min(layers[j-1], n))
+                    i += 1
+
             layers.append(r)
             n -= r
             j += 1
@@ -179,30 +176,26 @@ class TowerCreator(pyglet.window.Window):
         if len(self.flat_boxes) == self.n:
             self.trajectories.append([])
 
-    def create_pos_for_boxes(self, layer_num, layer_size, index_in_layer, middle_x):
-        box_variation = int(self.rect_width * 0.25)
+    def create_pos_for_boxes(self, layer_num, layer_size, index_in_layer, middle_x, to_drop=False):
+        box_variation = int(self.rect_width * 0.3)
+        if to_drop:
+            box_variation = int(self.rect_width * 0.5)
         mean_range = self.rect_width + 2 * box_variation
         box_mean = middle_x + ( ((-1) ** index_in_layer) * math.floor((index_in_layer+1)/2) * mean_range ) 
-        # If the layer size is one then it is more free to put the box wherever it wants 
-        # between left and right edge
-        if layer_size == 1 and layer_num != 0:
-            # this method returns the middle of leftmost and rightmost rectangles
-            right_edge, left_edge = self.get_right_left_edge(layer_num-1)
-            x_pos = random.randint(int(left_edge-self.rect_width/2), int(right_edge+self.rect_width/2))
+
+        if layer_size % 2 == 0:
+            x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
         else:
-            if layer_size % 2 == 0:
-                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation) + int(mean_range / 2)
-            else:
-                x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
+            x_pos = random.randint(box_mean - (1 - self.orientation) * box_variation, box_mean + self.orientation * box_variation)
+
         y_pos = self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
 
         return x_pos, y_pos
 
-
     # This method puts necessary number of boxes to the given layer by starting putting the box in the middle to the middle position
-    def put_boxes(self, layer_num, layer_size, middle_x):
+    def put_boxes(self, layer_num, layer_size, middle_x, to_drop=False):
         for i in range(layer_size):
-            x_pos, y_pos = self.create_pos_for_boxes(layer_num=layer_num, layer_size=layer_size, index_in_layer=i, middle_x=middle_x)
+            x_pos, y_pos = self.create_pos_for_boxes(layer_num=layer_num, layer_size=layer_size, index_in_layer=i, middle_x=middle_x, to_drop=to_drop)
             # Move the box a little towards the orientation
             # If orientation is 1, random part will be added (moving x towards left)
             # otherwise random part will be removed which will make x move towards right
@@ -213,16 +206,13 @@ class TowerCreator(pyglet.window.Window):
             shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
 
             # This block checks whether the tower getting built is stable or not 
-            # If so it starts directing the tower towards a different way
-            # TODO: check if you need this block
-            # while not self.is_box_stable(layer_num, shape):
-            #     # If orientation is 0, random part will be added (moving x towards left)
-            #     # otherwise random part will be removed which will make x move towards right
-            #     print('in not self.is_box_stable')
-            #     x_pos = x_pos + ((-1) ** self.orientation * random.randint(0, int(box_variation / 2)))
-            #     body = pymunk.Body(mass, moment)
-            #     body.position = Vec2d(x_pos, y_pos)
-            #     shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))  
+            if not self.is_box_stable(layer_num, shape):
+                print('in not self.is_box_stable')
+                self.orientation = not self.orientation
+                x_pos, y_pos = self.create_pos_for_boxes(layer_num=layer_num, layer_size=layer_size, index_in_layer=i, middle_x=middle_x, to_drop=to_drop)
+                body = pymunk.Body(mass, moment)
+                body.position = Vec2d(x_pos, y_pos)
+                shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))  
 
             shape.friction = 0.3
             self.space.add(body, shape)
@@ -246,13 +236,12 @@ class TowerCreator(pyglet.window.Window):
                 right_edge = box.body.position[0]
             if box.body.position[0] < left_edge:
                 left_edge = box.body.position[0]
-        return right_edge, left_edge
+        return right_edge+int(self.rect_width/2), left_edge-int(self.rect_width/2)
 
     # Returns the x position of the current center of mass of self.boxes
     # TODO: these methods are not used for now, check whether you need them or not
     def get_center_of_mass_x(self):
         center_of_mass = 0
-
         num_of_boxes = 0
         for j in range(len(self.boxes)):
             for i in range(len(self.boxes[j])):
@@ -261,6 +250,7 @@ class TowerCreator(pyglet.window.Window):
         for j in range(len(self.boxes)):
             for box in self.boxes[j]:
                 center_of_mass += int(box.body.position[0] / num_of_boxes)
+
         return center_of_mass
 
     # This method returns True or False indicating whether the given x will cause the system's center of mass get out of the system's grounding boxes
@@ -268,27 +258,22 @@ class TowerCreator(pyglet.window.Window):
     def is_box_stable(self, layer_num, box):
         if layer_num == 0:
             return True
-            
+
         self.boxes[layer_num].append(box)
         com = self.get_center_of_mass_x()
         self.boxes[layer_num].pop() # remove the box
 
         # Calculate the left most and right most points which when the center of mass is between these two values the system is stable
-        right_edge = -10000 # The window width cannot be 10000 pixels for sure
-        left_edge = 10000
-        for b in self.boxes[0]:
-            if b.body.position[0] + int(self.rect_width / 2) > right_edge: 
-                right_edge = b.body.position[0] + int(self.rect_width / 2)
-            if b.body.position[0] - int(self.rect_width / 2) < left_edge:
-                left_edge = b.body.position[0] - int(self.rect_width / 2)
+        right_edge, left_edge = self.get_right_left_edge(0)
 
-        return (com > left_edge and com < right_edge)
+        return (com >= left_edge and com <= right_edge)
 
     def drop_object(self):
         layer_num = len(self.boxes)
         self.boxes.append([])
         middle_x = self.get_middle(layer_num)
-        self.put_boxes(layer_num=layer_num, layer_size=1, middle_x=middle_x)
+        # When the box is put to drop the variation increases
+        self.put_boxes(layer_num=layer_num, layer_size=1, middle_x=middle_x, to_drop=True)
         self.dropped_object = self.boxes[layer_num][0]
 
     # Create a random position to drop the object 
@@ -296,27 +281,75 @@ class TowerCreator(pyglet.window.Window):
     # If one of them demolishes actually drop the object
     def drop_to_demolish(self):
         layer_num = len(self.boxes)
+        self.boxes.append([])
         middle_x = self.get_middle(layer_num)
-        x_pos, y_pos = self.create_pos_for_boxes(layer_num=len(self.boxes), layer_size=1, index_in_layer=0, middle_x=middle_x)
         
-        print('x_pos: {}, y_pos: {}'.format(x_pos, y_pos))
         # Add the positions to trajectories, call predict_stabilities, if the stabilities are mostly lower than 0.5, put the box there
         # Otherwise don't put the box keep creating positions
-        for _ in range(self.n+1):
-            self.trajectories[-1].append([])
+        if (len(self.trajectories[-1]) == 0):
+            for _ in range(self.n+1):
+                self.trajectories[-1].append([])
             
-        self.trajectories[-1][0].append([x_pos, y_pos])
+        self.trajectories[-1][0].append([0, 0]) # [0,0] gets changed as x_pos and y_pos is created below
         for i,box in enumerate(self.flat_boxes):
             self.trajectories[-1][i+1].append([box.body.position[0],box.body.position[1]])
 
-        self.predict_stabilities()
-        print('self.stabilities: {}'.format(self.stabilities))
+        num_of_predicts = 100
+        pos_stability = np.zeros((num_of_predicts, 3)) # 3: [stability_sum, x_pos, y_pos]
 
-        for i in range(10):
-            x_pos, y_pos = self.create_pos_for_boxes(layer_num=len(self.boxes), layer_size=1, index_in_layer=0, middle_x=middle_x)
+        for i in range(num_of_predicts):
+            stability_sum = 0
+            x_pos, y_pos = self.create_pos_for_boxes(layer_num=len(self.boxes), layer_size=1, index_in_layer=0, middle_x=middle_x, to_drop=True)
             self.trajectories[-1][0][0] = [x_pos, y_pos]
             self.predict_stabilities()
-            print('self.stabilities: {}'.format(self.stabilities))
+            for s in self.stabilities[0]:
+                stability_sum += s[0]
+            pos_stability[i] = [stability_sum, x_pos, y_pos]
+            print('pos_stability[i]: {}'.format(pos_stability[i]))
+
+        self.trajectories[-1] = []
+        print('stabilities after for in drop_to_demolish: {}'.format(pos_stability[:,0]))
+        index_min = np.argmin(pos_stability[:,0])
+        x_pos, y_pos = pos_stability[index_min, 1:]
+        print('pos_stability with minimum stability is: {}, and x_pos,y_pos found: {},{}'.format(pos_stability[index_min], x_pos, y_pos))
+
+        # Put the object with minimum stability
+        mass = 50.0
+        moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
+        body = pymunk.Body(mass, moment)
+        body.position = Vec2d(x_pos, y_pos)
+        shape = pymunk.Poly.create_box(body, (self.rect_width, self.rect_height))
+        shape.friction = 0.3
+        self.space.add(body, shape)
+        self.boxes[layer_num].append(shape)
+        self.dropped_object = self.boxes[layer_num][0]
+
+    # Looks at the trajectory and calculates the stabilities of each object
+    # trajectory = self.trajectories[i] == (n_of_objects, n_of_frame, (x,y))
+    def calculate_stability(self, trajectory_index):
+        print('trajectories[-1] in calculate_stability: {}'.format(self.trajectories[-1]))
+        n_of_frame = len(self.trajectories[trajectory_index][0]) # number of frame of the zeroth object
+        n_of_objects = len(self.trajectories[trajectory_index]) # self.n+1
+
+        # Reverse trajectory into a numpy array
+        trajectory = np.zeros((n_of_objects, n_of_frame, 2))
+        # Fix the data into a numpy array
+        for o in range(n_of_objects):
+            for f in range(n_of_frame):
+                trajectory[o][f][0] = self.trajectories[trajectory_index][o][f][0]
+                trajectory[o][f][1] = self.trajectories[trajectory_index][o][f][1]
+
+        # Look at the last frame_threshold of the data and calculate whether the position of the object is the same or not
+        stabilities = np.zeros((n_of_objects, 1)) # 1 for making it two dimensional (looks same as the predicted stability as well)
+        stability_threshold = 0.5 # The distance that will indicate that the corresponding object is stopping between frames
+        for o in range(n_of_objects):
+            pos_change = 0
+            for f in range(n_of_frame-1):
+                pos_change += np.linalg.norm(trajectory[o,f,0:2]-trajectory[o,f+1,0:2]) # take difference between two different frames of object
+            if pos_change < stability_threshold:
+                stabilities[o,0] = 1.0
+
+        return stabilities
 
     # This function returns an array (n_objects), indicating the stability of each object
     # This is called at the of the drop_object
@@ -328,7 +361,6 @@ class TowerCreator(pyglet.window.Window):
 
         boxes = np.zeros((1, n_objects, n_object_attr_dim)) # 1 for 1 trajectory
         for o in range(n_objects):
-            print('len(self.trajectories[0]): {}, o: {}'.format(len(self.trajectories[0]), o))
             boxes[0,o,0] = self.trajectories[-1][o][0][0] / 170.0
             boxes[0,o,1] = self.trajectories[-1][o][0][1] / 170.0
 
@@ -385,9 +417,12 @@ class TowerCreator(pyglet.window.Window):
             self.create_world()
         elif symbol == key.DOWN:
             self.drop_object() # Dropping an object from the highest part of the tower
-            # self.drop_to_demolish()
         elif symbol == key.P:
-            self.draw_drop_object_trajectory()
+            stabilities = self.calculate_stability(-1)
+            print('stabilities from calculate_stability is: {}'.format(stabilities))
+        elif symbol == key.D and self.demolish:
+            self.drop_to_demolish() # drop an object to the top of the tower to demolish the tower
+        
 
     def on_draw(self):
         self.clear()
