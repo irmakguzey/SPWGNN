@@ -9,7 +9,7 @@ def calculate_stability(boxes):
 	n_of_traj = len(boxes)
 	n_of_frame = len(boxes[0])
 	n_objects = len(boxes[0][0])
-	temp_y = np.zeros((n_of_traj, n_objects, 1)) # 1 is for making it 3 dimensional 
+	y = np.zeros((n_of_traj, n_objects, 1)) # 1 is for making it 3 dimensional 
 	frame_threshold = n_of_frame # Number of frames in the end to look for stability 
 	stability_threshold = 0.5 # The distance that will indicate that the corresponding object is stopping between frames
 	for o in range(n_objects):
@@ -18,22 +18,23 @@ def calculate_stability(boxes):
 			for f in range(n_of_frame-frame_threshold, n_of_frame-1):
 				pos_change += np.linalg.norm(boxes[t,f,o,0:2]-boxes[t,f+1,o,0:2])
 			if pos_change < stability_threshold:
-				temp_y[t,o,0] = 1.0
-	return temp_y
+				y[t,o,0] = 1.0
+	return y
 
-def train_gnn(n, N, random_str):
+def train_gnn(n, N, file_str, is_jenga=False):
 	# Get the data and train the model
 	n_objects = n+1 # 6+1
+	if is_jenga:
+		n_objects = n-1
 	object_dim = 2
 	n_of_rel_type = 1 # for now we only have the distance relation
 	n_relations = n_objects*(n_objects-1)
 	n_of_traj = N
-	random_string = random_str
 
 	prop_net = PropagationNetwork()
 	gnn_model = prop_net.getModel(n_objects=n_objects, object_dim=object_dim)
 
-	json_file = open('data/jenga_model_{}_{}_{}.txt'.format(n_objects-1, n_of_traj, random_string))
+	json_file = open(file_str)
 	data = json.load(json_file)
 	json_file.close()
 
@@ -102,10 +103,13 @@ def train_gnn(n, N, random_str):
 
 if __name__ == '__main__':
 	n = 7
-	N = 5000
-	random_string = 'KVD1bh2b'
+	N = 1000
+	random_string = '38qymFKc'
+	# file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, n_of_traj, random_string)
+	file_str = 'data/jenga_model_7_1000_38qymFKc.txt'
 
-	gnn_model = train_gnn(n, N, random_string)
+	gnn_model = train_gnn(n, N, file_str, is_jenga=True)
 	# towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=gnn_model)
-	towerCreator = TowerCreator(n, N, self_run=False, demolish=True, gnn_model=gnn_model)
+	# towerCreator = TowerCreator(n, N, self_run=False, demolish=True, gnn_model=gnn_model)
+	towerCreator = TowerCreator(n, N, predict_stability=True, jenga=True, gnn_model=gnn_model)
 	towerCreator.run()

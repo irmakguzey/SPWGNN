@@ -19,10 +19,6 @@ class PropagationNetwork:
         
         n_relations = n_objects * (n_objects - 1)
 
-        # These inputs are put in the initialization
-        # Input constructor only creates a template for a layer names objects
-        # objects will be full when this class is used as a model and initialized with a dict
-        # with 'objects' key
         objects = Input(shape=(n_objects, object_dim), name='objects')
 
        # relations matrices are filled with 1 and 0s indicating whether two indiced objects have relationship or not

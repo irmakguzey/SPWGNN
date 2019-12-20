@@ -367,26 +367,27 @@ class TowerCreator(pyglet.window.Window):
     def predict_stabilities(self):
         n_of_traj = 1
         n_objects = self.n+1 # including the dropped object
+        if self.jenga:
+            n_objects = self.n-1
         n_relations = n_objects * (n_objects - 1)
         n_object_attr_dim = 2
 
         boxes = np.zeros((1, n_objects, n_object_attr_dim)) # 1 for 1 trajectory
         for o in range(n_objects):
-            boxes[0,o,0] = self.trajectories[-1][o][0][0] / 170.0
+            boxes[0,o,0] = self.trajectories[-1][o][0][0] / 170.0 # 170 is for relation threshold in main.py
             boxes[0,o,1] = self.trajectories[-1][o][0][1] / 170.0
 
         val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
         val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
-        propagation = np.zeros((n_of_traj, n_objects, 100)) # TODO understand 100
+        propagation = np.zeros((n_of_traj, n_objects, 100))
         cnt = 0 # cnt will indicate the relation that we are working with
         # TODO turn this into a data structure
-        relation_threshold = 170 # Calculated according to the rectangle width and height
         for m in range(n_objects):
             for j in range(n_objects):
                 if(m != j):
                     # norm function gives the root of sum of squares of every element in the given array-like
                     # inzz is a matrix with 1s and 0s indicating whether the 
-                    inzz = np.linalg.norm(boxes[:,m,0:2] - boxes[:,j,0:2], axis=1) < relation_threshold
+                    inzz = np.linalg.norm(boxes[:,m,0:2] - boxes[:,j,0:2], axis=1) < self.relation_threshold
                     val_receiver_relations[inzz, j, cnt] = 1.0
                     val_sender_relations[inzz, m, cnt] = 1.0   
                     cnt += 1
@@ -412,43 +413,15 @@ class TowerCreator(pyglet.window.Window):
             if len(self.trajectories[-1]) == 0:
                 for _ in range(self.n+1):
                     self.trajectories[-1].append([])
-                
             self.trajectories[-1][0].append([self.dropped_object.body.position[0],self.dropped_object.body.position[1]])
             for i,box in enumerate(self.flat_boxes):
                 self.trajectories[-1][i+1].append([box.body.position[0],box.body.position[1]])
 
         if self.predict_stability and not self.predicted_stability:
-            if not self.dropped_object == None:
+            if (self.jenga and self.removed_object) or (not self.dropped_object == None):
                 self.predict_stabilities()
                 print('self.stabilities: {}'.format(self.stabilities))
                 self.predicted_stability = True
-
-    # This method returns true if two box is touching each other and false otherwise
-    def there_is_relation(self, box_a, box_b):
-        return (math.sqrt((box_a.body.position[0] - box_b.body.position[0])**2 + (box_a.body.position[1] - box_b.body.position[1])**2) < self.relation_threshold)
-
-    def on_key_press(self, symbol, modifiers):
-        if symbol == key.ESCAPE:
-            self.event_loop.exit()
-
-        elif symbol == key.SPACE:
-            self.create_world()
-
-        elif symbol == key.DOWN:
-            self.drop_object() # Dropping an object from the highest part of the tower
-
-        elif symbol == key.P:
-            stabilities = self.calculate_stability(-1)
-
-        elif symbol == key.D and self.demolish:
-            self.drop_to_demolish() # drop an object to the top of the tower to demolish the tower
-
-        elif symbol == key.J and self.jenga:
-            self.remove_object() # removes one random object from the system
-
-        elif symbol == key.S:
-            self.save_trajectories()
-        
 
     def on_draw(self):
         self.clear()
@@ -476,18 +449,50 @@ class TowerCreator(pyglet.window.Window):
                     glVertex2f(p2.x, p2.y)
             glEnd()
         
+        # Draw black boxes to the center of the boxes that are predicted to stay stable
         glPointSize(50)
         glBegin(GL_POINTS)
         glColor3i(255, 0, 0)
         if self.predicted_stability:
-            if self.stabilities[0,0,0] > 0.5:
-                glVertex2f(self.dropped_object.body.position[0], self.dropped_object.body.position[1])
-            for (i, box) in enumerate(self.flat_boxes):
-                if self.stabilities[0, i+1, 0] > 0.5:
-                    glVertex2f(box.body.position[0], box.body.position[1])
-            
+            if self.jenga:
+                for (i, box) in enumerate(self.flat_boxes):
+                    if self.stabilities[0, i, 0] > 0.5:
+                        glVertex2f(box.body.position[0], box.body.position[1])
+            elif not self.dropped_object == None:
+                if self.stabilities[0,0,0] > 0.5:
+                    glVertex2f(self.dropped_object.body.position[0], self.dropped_object.body.position[1])
+                for (i, box) in enumerate(self.flat_boxes):
+                    if self.stabilities[0, i+1, 0] > 0.5:
+                        glVertex2f(box.body.position[0], box.body.position[1])
+                
         glEnd()
             
+    # This method returns true if two box is touching each other and false otherwise
+    def there_is_relation(self, box_a, box_b):
+        return (math.sqrt((box_a.body.position[0] - box_b.body.position[0])**2 + (box_a.body.position[1] - box_b.body.position[1])**2) < self.relation_threshold)
+
+    def on_key_press(self, symbol, modifiers):
+        if symbol == key.ESCAPE:
+            self.event_loop.exit()
+
+        elif symbol == key.SPACE:
+            self.create_world()
+
+        elif symbol == key.DOWN:
+            self.drop_object() # Dropping an object from the highest part of the tower
+
+        elif symbol == key.P:
+            stabilities = self.calculate_stability(-1)
+
+        elif symbol == key.D and self.demolish:
+            self.drop_to_demolish() # drop an object to the top of the tower to demolish the tower
+
+        elif symbol == key.J and self.jenga:
+            self.remove_object() # removes one random object from the system
+
+        elif symbol == key.S:
+            self.save_trajectories()
+        
 
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
@@ -505,5 +510,5 @@ if __name__ == '__main__':
 
     # towerCreator = TowerCreator(n, N, self_run)
     # towerCreator = TowerCreator(n=7, jenga=True)
-    towerCreator = TowerCreator(n=7, N=1000, self_run=True, jenga=True)
+    towerCreator = TowerCreator(n=7, N=5000, self_run=True, jenga=True)
     towerCreator.run()
