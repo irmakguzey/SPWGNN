@@ -38,6 +38,7 @@ def train_gnn(n, N, random_str):
 	json_file.close()
 
 	n_object_attr_dim = 2 # x position, y position
+	data = [d for d in data if len(d) != 0] # TODO look into this bug, for some reason some trajectories had 0 objects in them
 	n_of_traj = len(data)
 	f_lengths = [len(t[0]) for t in data]
 	n_of_frame = min(f_lengths)
@@ -101,8 +102,8 @@ def train_gnn(n, N, random_str):
 
 if __name__ == '__main__':
 	n = 7
-	N = 1000
-	random_string = '3Lmd9cHD'
+	N = 5000
+	random_string = 'KVD1bh2b'
 
 	gnn_model = train_gnn(n, N, random_string)
 	# towerCreator = TowerCreator(n, N, self_run=False, predict_stability=True, gnn_model=gnn_model)
