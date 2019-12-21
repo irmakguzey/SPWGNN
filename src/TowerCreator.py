@@ -31,7 +31,7 @@ class TowerCreator(pyglet.window.Window):
         self.gnn_model = gnn_model
         self.stabilities = []
 
-        self.window_width = 800
+        self.window_width = 1500
         self.window_height = 800
 
         self.event_loop = pyglet.app.EventLoop()
@@ -120,7 +120,7 @@ class TowerCreator(pyglet.window.Window):
         self.removed_object = False
 
         # Create the ground line
-        ground_line = pymunk.Segment(self.space.static_body, Vec2d(20, self.bottom_edge), Vec2d(780, self.bottom_edge), 1)
+        ground_line = pymunk.Segment(self.space.static_body, Vec2d(20, self.bottom_edge), Vec2d(self.window_width-20, self.bottom_edge), 1)
         ground_line.friction = 0.9
         self.space.add(ground_line)
 
@@ -347,7 +347,7 @@ class TowerCreator(pyglet.window.Window):
         # box_stabilities[remove_index] = stability: holds the stability of the system when the box in remove_index is removed
         box_stabilities = np.zeros(self.n)
         for remove_index in range(self.n):
-            stabilitiy_sum = 0
+            stability_sum = 0
             for box_index,box in enumerate(self.flat_boxes): # put the positions of the objects properly
                 if box_index < remove_index:
                     self.trajectories[-1][box_index].append([box.body.position[0],box.body.position[1]])
@@ -552,7 +552,7 @@ if __name__ == '__main__':
     # else:
     #     self_run = False
 
-    towerCreator = TowerCreator(n=7, N=5000, self_run=True)
+    towerCreator = TowerCreator(n=11, N=5000, self_run=True)
     # towerCreator = TowerCreator(n=7, jenga=True)
-    # towerCreator = TowerCreator(n=7, N=5000, self_run=True, jenga=True)
+    # towerCreator = TowerCreator(n=7, self_run=False, jenga=True)
     towerCreator.run()

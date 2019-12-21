@@ -11,7 +11,7 @@ def calculate_stability(boxes):
 	n_objects = len(boxes[0][0])
 	y = np.zeros((n_of_traj, n_objects, 1)) # 1 is for making it 3 dimensional 
 	frame_threshold = n_of_frame # Number of frames in the end to look for stability 
-	stability_threshold = 0.1 # The distance that will indicate that the corresponding object is stopping between frames
+	stability_threshold = 0.5 # The distance that will indicate that the corresponding object is stopping between frames
 	for o in range(n_objects):
 		for t in range(n_of_traj):
 			pos_change = 0
@@ -81,7 +81,7 @@ def train_gnn(n, N, file_str, is_jenga=False):
 																																	val_receiver_relations.shape,
 																																	propagation.shape,
 																																	y.shape))
-	# print('y is: {}'.format(y[50:100,:,0]))
+	print('y is: {}'.format(y[50:60,:,0]))
 
 	boxes = boxes/relation_threshold
 	gnn_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
@@ -112,11 +112,12 @@ if __name__ == '__main__':
 	N = 5000
 	# random_string = '38qymFKc'
 	# file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, n_of_traj, random_string)
-	file_str = 'data/jenga_model_7_5000_g7JLyo0R.txt'
+	file_str = 'data/jenga_model_7_5000_shUULAWO.txt'
 
 	# gnn_model = train_gnn(n, N, file_str)
 	gnn_model = train_gnn(n, N, file_str, is_jenga=True)
 	# towerCreator = TowerCreator(n, N, predict_stability=True, gnn_model=gnn_model)
 	# towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
 	towerCreator = TowerCreator(n, N, predict_stability=True, jenga=True, gnn_model=gnn_model)
+	# towerCreator = TowerCreator(n, N, demolish=True, jenga=True, gnn_model=gnn_model)
 	towerCreator.run()
