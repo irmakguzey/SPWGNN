@@ -106,7 +106,6 @@ def train_gnn(n, N, file_str, jenga=False):
 
 	# This script reads the saved trajectory, trains the graph neural network
 	# Runs in Python3
-
 if __name__ == '__main__':
 	n = 7
 	N = 1000
@@ -115,5 +114,6 @@ if __name__ == '__main__':
 	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
 	gnn_model = train_gnn(n, N, file_str)
-	towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
-	towerCreator.run()
+	# towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
+	jengaBuilder = JengaBuilder (n, N)
+	jengaBuilder.run()
