@@ -179,6 +179,8 @@ class TowerCreator(pyglet.window.Window):
 
         if layer_num > 0 and layer_size == 1:
             right_edge, left_edge = self.get_right_left_edge(layer_num-1) 
+            print('layer_num: {}, right_edge: {}, left_edge: {}'.format(layer_num, right_edge, left_edge))
+            print('self.boxes: {}'.format(self.boxes))
             # to make the beginning of the towers a little more stable instad of going halft left half right, we go 0.3 left, 0.3 right...
             x_pos = random.randint(int(left_edge)+int(self.rect_width * 0.2), int(right_edge)-int(self.rect_width * 0.2))
         else: 
@@ -298,7 +300,7 @@ class TowerCreator(pyglet.window.Window):
 
         for i in range(num_of_predicts):
             stability_sum = 0
-            x_pos, y_pos = self.create_pos_for_boxes(layer_num=len(self.boxes), layer_size=1, index_in_layer=0, middle_x=middle_x, to_drop=True)
+            x_pos, y_pos = self.create_pos_for_boxes(layer_num=layer_num, layer_size=1, index_in_layer=0, middle_x=middle_x, to_drop=True)
             self.trajectories[-1][0][0] = [x_pos, y_pos]
             self.predict_stabilities()
             for s in self.stabilities[0]:
@@ -552,7 +554,7 @@ if __name__ == '__main__':
     # else:
     #     self_run = False
 
-    towerCreator = TowerCreator(n=11, N=5000, self_run=True)
+    towerCreator = TowerCreator(n=11, N=10000, self_run=True, jenga=True)
     # towerCreator = TowerCreator(n=7, jenga=True)
     # towerCreator = TowerCreator(n=7, self_run=False, jenga=True)
     towerCreator.run()

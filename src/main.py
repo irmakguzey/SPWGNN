@@ -21,10 +21,10 @@ def calculate_stability(boxes):
 				y[t,o,0] = 1.0
 	return y
 
-def train_gnn(n, N, file_str, is_jenga=False):
+def train_gnn(n, N, file_str, jenga=False):
 	# Get the data and train the model
 	n_objects = n+1 # 6+1
-	if is_jenga:
+	if jenga:
 		n_objects = n-1
 	object_dim = 2
 	n_of_rel_type = 1 # for now we only have the distance relation
@@ -81,13 +81,13 @@ def train_gnn(n, N, file_str, is_jenga=False):
 																																	val_receiver_relations.shape,
 																																	propagation.shape,
 																																	y.shape))
-	print('y is: {}'.format(y[50:60,:,0]))
+	print('y is: {}'.format(y[0:10,:,0]))
 
 	boxes = boxes/relation_threshold
 	gnn_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
 						{'target': y},
 						batch_size=32,
-						epochs=250,
+						epochs=10,
 						validation_split=0.2,
 						shuffle=True,
 						verbose=1)
@@ -109,15 +109,11 @@ def train_gnn(n, N, file_str, is_jenga=False):
 
 if __name__ == '__main__':
 	n = 7
-	N = 5000
-	# random_string = '38qymFKc'
-	# file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, n_of_traj, random_string)
-	file_str = 'data/jenga_model_7_5000_shUULAWO.txt'
+	N = 1000
+	random_string = 'z8UHyLhB'
+	file_str = 'data/second_model_{}_{}_{}.txt'.format(n, N, random_string)
+	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
-	# gnn_model = train_gnn(n, N, file_str)
-	gnn_model = train_gnn(n, N, file_str, is_jenga=True)
-	# towerCreator = TowerCreator(n, N, predict_stability=True, gnn_model=gnn_model)
-	# towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
-	towerCreator = TowerCreator(n, N, predict_stability=True, jenga=True, gnn_model=gnn_model)
-	# towerCreator = TowerCreator(n, N, demolish=True, jenga=True, gnn_model=gnn_model)
+	gnn_model = train_gnn(n, N, file_str)
+	towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
 	towerCreator.run()
