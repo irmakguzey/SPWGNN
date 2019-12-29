@@ -32,7 +32,7 @@ class JengaBuilder(pyglet.window.Window):
         pyglet.window.Window.__init__(self, self.window_width,
                                         self.window_height, vsync=False)
 
-        self.set_caption('Jega Builder')
+        self.set_caption('Jenga Builder')
 
         self.fps_display = pyglet.window.FPSDisplay(self)
 
@@ -51,7 +51,7 @@ class JengaBuilder(pyglet.window.Window):
         self.rect_height = 80
         # Every rectangle will have a width of random.randint(self.rect_min_wdith, self.rect_width_min + self.rect_width_range)
         self.rect_width_min = 50
-        self.rect_width_range = 300 # Range of rectangles to change 
+        self.rect_width_range = 250 # Range of rectangles to change 
         self.rect_width_average = (self.rect_width_min + self.rect_width_range) / 2
         self.max_space_rects = 50 # Maximum space between two rectangle
         self.relation_threshold = math.sqrt(self.rect_width_average ** 2 + self.rect_height ** 2)
@@ -63,7 +63,10 @@ class JengaBuilder(pyglet.window.Window):
         self.trajectories = []
 
         if self.self_run:
-            self.run_and_take_trajectory()
+            if predict_stability: # If both self_run and predict_stability is true, then it will run and calculate success in each trajectory
+                self.run_and_calculate_success()
+            else:
+                self.run_and_take_trajectory()
         else:
             self.create_world() # Creates a world with randomly put n rectangles
 
@@ -80,6 +83,16 @@ class JengaBuilder(pyglet.window.Window):
         pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
         print('*** scheduling over')
 
+    def run_and_calculate_success(self):
+        self.success = []
+        for i in range(self.N):
+            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
+            pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
+            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_success') # Calculate actual stability and compare it with the predicted one
+        
+        pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
+        pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
+
     def callback(self, dt, callback_type):
         if callback_type == 'create_world':
             self.create_world()
@@ -87,6 +100,10 @@ class JengaBuilder(pyglet.window.Window):
             self.remove_object()
         elif callback_type == 'save_trajectories':
             self.save_trajectories()
+        elif callback_type == 'calculate_success':
+            self.success.append(self.calculate_success())
+        elif callback_type == 'print_success':
+            print('self.success: {}'.format(self.success))
 
     def save_trajectories(self):
         # create random endix to the file name
@@ -98,7 +115,6 @@ class JengaBuilder(pyglet.window.Window):
             json.dump(self.trajectories, outfile)
 
     def create_world(self):
-        print('in create_world')
         self.space = pymunk.Space()
         self.space.gravity = Vec2d(0., -900.)
         self.space.sleep_time_threshold = 0.9
@@ -120,11 +136,11 @@ class JengaBuilder(pyglet.window.Window):
             right_edge, left_edge = self.get_right_left_edge(layer_num-1)
 
             if right_edge == left_edge: # The layer below has one element
-                x_pos = random.randint(left_edge-self.rect_width_min/2, left_edge+self.rect_width_min/2)
+                x_pos = random.randint(int(left_edge-self.rect_width_min/2), int(left_edge+self.rect_width_min/2))
                 rect_width = random.randint(self.rect_width_min, self.rect_width_min + self.rect_width_range)
                 self.put_box(layer_num=layer_num,
                              x_pos=x_pos,
-                             y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num,
+                             y_pos=self.bottom_edge +int(self.rect_height/2) + self.rect_height * layer_num,
                              rect_width=rect_width)
                 n -= 1
                 continue
@@ -132,7 +148,7 @@ class JengaBuilder(pyglet.window.Window):
             # Start from the left_edge and put boxes towards right edge
             # Stop putting boxes if the number of objects required is reached
             # Move on to the next layer if the right edge is reached
-            left_edge -= (layer_num > 0) * self.rect_width_average/2
+            left_edge -= (layer_num > 0) * int(self.rect_width_average/2)
             rect_width = random.randint(self.rect_width_min, self.rect_width_min + self.rect_width_range)
             left_edge += rect_width
             while left_edge - rect_width/2 < right_edge and n > 0:
@@ -156,13 +172,14 @@ class JengaBuilder(pyglet.window.Window):
             self.trajectories.append([])
 
     def put_box (self, layer_num, x_pos, y_pos, rect_width):
-        print('layer_num: {}, x_pos: {}, y_pos: {}, rect_width: {} in put_box: '.format(layer_num, x_pos, y_pos, rect_width))
+        # print('layer_num: {}, x_pos: {}, y_pos: {}, rect_width: {} in put_box: '.format(layer_num, x_pos, y_pos, rect_width))
         mass = 50.0
         moment = pymunk.moment_for_box(mass, (rect_width, self.rect_height))
         body = pymunk.Body(mass, moment)
         body.position = Vec2d(x_pos, y_pos)
         shape = pymunk.Poly.create_box(body, (rect_width, self.rect_height))
         shape.friction = 0.3
+        # print('shape.body.area: {}, shape.body.area/rect_height: {}, rect_width: {}'.format(shape.area, shape.area/self.rect_height, rect_width))
         self.space.add(body, shape)
         self.boxes[layer_num].append(shape)
 
@@ -178,6 +195,9 @@ class JengaBuilder(pyglet.window.Window):
             if box.body.position[0] < left_edge:
                 left_edge = box.body.position[0]
         return right_edge, left_edge 
+
+    def get_rect_width(self, box):
+        return box.area / self.rect_height
 
     # This method removes one random object from the system
     def remove_object(self):
@@ -204,9 +224,9 @@ class JengaBuilder(pyglet.window.Window):
             stability_sum = 0
             for box_index,box in enumerate(self.flat_boxes): # put the positions of the objects properly
                 if box_index < remove_index:
-                    self.trajectories[-1][box_index].append([box.body.position[0],box.body.position[1]])
+                    self.trajectories[-1][box_index].append([box.body.position[0],box.body.position[1], self.get_rect_width(box)])
                 elif box_index > remove_index:
-                    self.trajectories[-1][box_index-1].append([box.body.position[0],box.body.position[1]])
+                    self.trajectories[-1][box_index-1].append([box.body.position[0],box.body.position[1], self.get_rect_width(box)])
 
             # predict stabilities for the box in remove_index removed
             self.predict_stabilities()
@@ -231,17 +251,18 @@ class JengaBuilder(pyglet.window.Window):
     # Looks at the trajectory and calculates the stabilities of each object
     # trajectory = self.trajectories[i] == (n_of_objects, n_of_frame, (x,y))
     def calculate_stability(self, trajectory_index):
-        print('trajectories[-1] in calculate_stability: {}'.format(self.trajectories[-1]))
         n_of_frame = len(self.trajectories[trajectory_index][0]) # number of frame of the zeroth object
         n_of_objects = len(self.trajectories[trajectory_index]) # self.n+1
+        n_objects_attr_dim = 3
 
         # Reverse trajectory into a numpy array
-        trajectory = np.zeros((n_of_objects, n_of_frame, 2))
+        trajectory = np.zeros((n_of_objects, n_of_frame, n_objects_attr_dim))
         # Fix the data into a numpy array
         for o in range(n_of_objects):
             for f in range(n_of_frame):
                 trajectory[o][f][0] = self.trajectories[trajectory_index][o][f][0]
                 trajectory[o][f][1] = self.trajectories[trajectory_index][o][f][1]
+                trajectory[o][f][2] = self.trajectories[trajectory_index][o][f][2]
 
         # Look at the last frame_threshold of the data and calculate whether the position of the object is the same or not
         stabilities = np.zeros((n_of_objects, 1)) # 1 for making it two dimensional (looks same as the predicted stability as well)
@@ -259,16 +280,15 @@ class JengaBuilder(pyglet.window.Window):
     # This is called at the of the drop_object
     def predict_stabilities(self):
         n_of_traj = 1
-        n_objects = self.n+1 # including the dropped object
-        if self.jenga:
-            n_objects = self.n-1
+        n_objects = self.n-1 # including the removed object
         n_relations = n_objects * (n_objects - 1)
-        n_object_attr_dim = 2
+        n_object_attr_dim = 3
 
         boxes = np.zeros((1, n_objects, n_object_attr_dim)) # 1 for 1 trajectory
         for o in range(n_objects):
             boxes[0,o,0] = self.trajectories[-1][o][0][0] / 170.0 # 170 is for relation threshold in main.py
             boxes[0,o,1] = self.trajectories[-1][o][0][1] / 170.0
+            boxes[0,o,2] = self.trajectories[-1][o][0][2] / 170.0
 
         val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
         val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
@@ -288,6 +308,24 @@ class JengaBuilder(pyglet.window.Window):
         self.stabilities = self.gnn_model.predict({'objects': boxes[0:1,:,:], 'sender_relations': val_sender_relations,
                                                     'receiver_relations': val_receiver_relations, 'propagation': propagation})
 
+    # Compares the actual stability of each object and the predicted stability
+    # And checks how much of them was correct
+    def calculate_success(self):
+        calculated_stabilities = self.calculate_stability(-1)
+        predicted_stabilities = self.stabilities
+        success = 0
+        # print('calculated_stabilities: {}, predicted_stabilities: {}'.format(calculated_stabilities, predicted_stabilities))
+        stability_length = len(calculated_stabilities)
+        for i in range(stability_length):
+            c = calculated_stabilities[i][0]
+            s = predicted_stabilities[0][i][0]
+            # print('s: {}, c: {}, (s > 0.5): {}'.format(s, c, s>0.5))
+            if ((s > 0.5) == c):
+                success += 1
+
+        print('success calculated is: {}%'.format(success / stability_length * 100))
+        return success / stability_length * 100
+
     def update(self, dt):
         step_dt = 1/250.
         x = 0
@@ -300,13 +338,14 @@ class JengaBuilder(pyglet.window.Window):
                 for _ in range(self.n-1):
                     self.trajectories[-1].append([])
             for i,box in enumerate(self.flat_boxes): # the object is also removed from flat_boxes
-                self.trajectories[-1][i].append([box.body.position[0], box.body.position[1]])
+                self.trajectories[-1][i].append([box.body.position[0], box.body.position[1], self.get_rect_width(box)])
 
         if self.predict_stability and not self.predicted_stability:
             if self.removed_object:
                 self.predict_stabilities()
-                print('self.stabilities: {}'.format(self.stabilities))
+                # print('self.stabilities: {}'.format(self.stabilities))
                 self.predicted_stability = True
+                self.calculate_success()
 
     def on_draw(self):
         self.clear()
@@ -370,5 +409,5 @@ if __name__ == '__main__':
     # towerCreator = TowerCreator(n=11, N=10000, self_run=True, jenga=True)
     # towerCreator = TowerCreator(n=7, jenga=True)
     # towerCreator = TowerCreator(n=7, self_run=False, jenga=True)
-    jengaBuilder = JengaBuilder(n=20)
+    jengaBuilder = JengaBuilder(n=10, N=1000, self_run=True)
     jengaBuilder.run()

@@ -1,4 +1,5 @@
 from TowerCreator import *
+from JengaBuilder import *
 from Networks import *
 from Blocks import *
 import json
@@ -24,9 +25,10 @@ def calculate_stability(boxes):
 def train_gnn(n, N, file_str, jenga=False):
 	# Get the data and train the model
 	n_objects = n+1 # 6+1
+	object_dim = 2
 	if jenga:
 		n_objects = n-1
-	object_dim = 2
+		object_dim = 3
 	n_of_rel_type = 1 # for now we only have the distance relation
 	n_relations = n_objects*(n_objects-1)
 	n_of_traj = N
@@ -38,13 +40,13 @@ def train_gnn(n, N, file_str, jenga=False):
 	data = json.load(json_file)
 	json_file.close()
 
-	n_object_attr_dim = 2 # x position, y position
+	# n_object_attr_dim = 2 # x position, y position
 	data = [d for d in data if len(d) != 0] # TODO look into this bug, for some reason some trajectories had 0 objects in them
 	n_of_traj = len(data)
 	f_lengths = [len(t[0]) for t in data]
 	n_of_frame = max(f_lengths)
 
-	boxes = np.zeros((n_of_traj, n_of_frame, n_objects, n_object_attr_dim))
+	boxes = np.zeros((n_of_traj, n_of_frame, n_objects, object_dim))
 	print('boxes.shape: {}'.format(boxes.shape))
 	# Fix the data into a numpy array
 	for t in range(n_of_traj):
@@ -54,22 +56,25 @@ def train_gnn(n, N, file_str, jenga=False):
 				if f > max_f:
 					boxes[t][f][o][0] = data[t][o][max_f][0] # when the frame of the current data is exceeded, the last position of the objects are saved 
 					boxes[t][f][o][1] = data[t][o][max_f][1]
+					boxes[t][f][o][2] = data[t][o][max_f][2]
 				else:
 					boxes[t][f][o][0] = data[t][o][f][0]
 					boxes[t][f][o][1] = data[t][o][f][1]
+					boxes[t][f][o][2] = data[t][o][f][2]
 
 
 	val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
 	val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
-	propagation = np.zeros((n_of_traj, n_objects, 100)) # TODO understand 100
+	propagation = np.zeros((n_of_traj, n_objects, 100))
 	cnt = 0 # cnt will indicate the relation that we are working with
-	# TODO turn this into a data structure
-	relation_threshold = 170 # Calculated according to the rectangle width and height
+
+	relation_threshold = 170 # Calculated according to the rectangle width and height -- TODO
 	for m in range(n_objects):
 		for j in range(n_objects):
 			if(m != j):
 				# norm function gives the root of sum of squares of every element in the given array-like
 				# inzz is a matrix with 1s and 0s indicating whether the 
+				# TODO: this relation extraction might be wrong consdering the fact that 
 				inzz = np.linalg.norm(boxes[:,0,m,0:2] - boxes[:,0,j,0:2], axis=1) < relation_threshold
 				val_receiver_relations[inzz, j, cnt] = 1.0
 				val_sender_relations[inzz, m, cnt] = 1.0   
@@ -104,16 +109,16 @@ def train_gnn(n, N, file_str, jenga=False):
 
 	return gnn_model
 
-	# This script reads the saved trajectory, trains the graph neural network
-	# Runs in Python3
+# This script reads the saved trajectory, trains the graph neural network
+# Runs in Python3
 if __name__ == '__main__':
-	n = 7
-	N = 1000
-	random_string = 'z8UHyLhB'
-	file_str = 'data/second_model_{}_{}_{}.txt'.format(n, N, random_string)
+	n = 20
+	N = 200
+	random_string = '6EVuyiE5'
+	file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, N, random_string)
 	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
-	gnn_model = train_gnn(n, N, file_str)
+	gnn_model = train_gnn(n, N, file_str, jenga=True)
 	# towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
-	jengaBuilder = JengaBuilder (n, N)
+	jengaBuilder = JengaBuilder (n, 15, self_run=True, predict_stability=True, gnn_model=gnn_model)
 	jengaBuilder.run()

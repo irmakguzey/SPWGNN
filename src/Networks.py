@@ -13,7 +13,7 @@ class PropagationNetwork:
     def __init__(self):
         self.Nets={}
         self.set_weights = False # This is for reusing the model (i guess)
-    def getModel(self, n_objects, object_dim=4, relation_dim=1): # objects dim is (in this model): width, height, x position, y position
+    def getModel(self, n_objects, object_dim=3, relation_dim=1): # objects dim is (in this model): width, height, x position, y position
         if n_objects in self.Nets.keys():
             return self.Nets[n_objects]
         
@@ -32,19 +32,19 @@ class PropagationNetwork:
         senders=dot([permuted_senders_rel,objects],axes=(2,1)) # dot == matrix multiplication
         receivers=dot([permuted_receiver_rel,objects],axes=(2,1))
 
-        # We can say that it is more possible that the object is going to stay stable if it is on the ground
         get_y = Lambda(lambda x: x[:,:,1:2], output_shape=(n_objects, 1))
+        get_width = Lambda(lambda x: x[:,:,2:3], output_shape=(n_objects, 1))
         get_obj_pos = Lambda(lambda x: x[:,:,0:2], output_shape=(n_objects, 2))
 
         # Using the same variables as @Fzaero's BRDPN depository
         if(self.set_weights):
-            rm = RelationalModel((n_relations,),2,[150,150,150,150],self.relnet,True) # TODO change
-            om = ObjectModel((n_objects,),1,[100,100],self.objnet,True)
+            rm = RelationalModel((n_relations,),2,[150,150,150,150],self.relnet,True)
+            om = ObjectModel((n_objects,),2,[100,100],self.objnet,True)
             rmp = RelationalModel((n_relations,),350,[150,150,100],self.relnetp,True)
             omp = ObjectModel((n_objects,),300,[100,101],self.objnetp,True)
         else:
             rm=RelationalModel((n_relations,),2,[150,150,150,150])
-            om = ObjectModel((n_objects,),1,[100,100])
+            om = ObjectModel((n_objects,),2,[100,100])
             
             rmp=RelationalModel((n_relations,),350,[150,150,100])
             omp = ObjectModel((n_objects,),300,[100,101])
@@ -57,13 +57,20 @@ class PropagationNetwork:
 
         r_pos = get_obj_pos(receivers)
         s_pos = get_obj_pos(senders)
+        
         # Difference of positions in 
         diff_rs = Subtract()([r_pos, s_pos])
-        # Getting stability of the objects
+
+        # Getting object attributes
         objects_y = get_y(objects)
+        objects_width = get_width(objects)
+
         # Creating Input of Relation Network
         rel_vector_wo_prop = diff_rs
-        obj_vector_wo_er = objects_y
+        if object_dim == 3:
+            obj_vector_wo_er = Concatenate()([objects_y, objects_width]) 
+        else:
+            obj_vector_wo_er = objects_y
         
         rel_encoding=Activation('relu')(rm(rel_vector_wo_prop))
         obj_encoding=Activation('relu')(om(obj_vector_wo_er))
