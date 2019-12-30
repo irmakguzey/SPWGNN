@@ -49,13 +49,13 @@ class TowerCreator(pyglet.window.Window):
                             font_size=10,
                             x=10, y=450)
 
-        self.rect_width = 150 # set size for rectangles
+        self.rect_width = 200 # set size for rectangles
         self.rect_height = 80
         self.relation_threshold = math.sqrt(self.rect_width ** 2 + self.rect_height ** 2)
-        self.max_space_rects = 50
+        self.max_space_rects = self.rect_width / 2
 
         self.bottom_edge = 70
-        self.left_most = 500 # left_most point to put rectangle to
+        self.left_most = 300 # left_most point to put rectangle to
         self.right_most = self.window_width - self.left_most
 
         self.draw_options = pymunk.pyglet_util.DrawOptions()
@@ -165,74 +165,71 @@ class TowerCreator(pyglet.window.Window):
         ground_line.friction = 0.9
         self.space.add(ground_line)
 
-        # Setting up the orientation of the center of the mass
-        # At some trajectories we want the boxes to build up towards right, at some of them towards left
-        # left < 0.5, right > 0.5
-        self.orientation = random.random() > 0.5
-        print('self.orientation: {}'.format(self.orientation))
+        # # Setting up the orientation of the center of the mass
+        # # At some trajectories we want the boxes to build up towards right, at some of them towards left
+        # # left < 0.5, right > 0.5
+        # self.orientation = random.random() > 0.5
+        # print('self.orientation: {}'.format(self.orientation))
 
-        # Setting up the number of boxes in each layer
-        layers = [random.randint(1, math.floor(self.n/2))]
-        n = self.n - layers[0]
-        j = 1
-        while n > 0:
-            if layers[j-1] == 1:
-                # If there is only one box then the boxes on top does not stay still with half of their center of mass staying on balance
-                r = 1
-            else:
-                # In order to decrease the chance of having 1 the data is manipulated
-                # When a layer has one box only then the rest of the tower has one box at every layer as well that is why we want the system to
-                # avoid giving 1 to a layer as much as possible
-                r = random.randint(1, min(layers[j-1], n))
-                i = 0
-                while r == 1 and n != 1 and i < 3:
-                    r = random.randint(1, min(layers[j-1], n))
-                    i += 1
-
-            layers.append(r)
-            n -= r
-            j += 1
-        print('number of boxes in each layer is: {}'.format(layers))
-
-        # Put the boxes on top of each other
-        for (layer_num, layer_size) in enumerate(layers):
-            self.boxes.append([])
-            middle_x = self.get_middle(layer_num)
-            self.put_boxes(layer_num, layer_size, middle_x)
-
-        # # With this model putting boxes and setting up number of boxes happens in parallel
-        # n = self.n
-        # layer_num = -1 # Represents the index of the current layer
+        # # Setting up the number of boxes in each layer
+        # layers = [random.randint(1, math.floor(self.n/2))]
+        # n = self.n - layers[0]
+        # j = 1
         # while n > 0:
-        #     layer_num += 1
+        #     if layers[j-1] == 1:
+        #         # If there is only one box then the boxes on top does not stay still with half of their center of mass staying on balance
+        #         r = 1
+        #     else:
+        #         # In order to decrease the chance of having 1 the data is manipulated
+        #         # When a layer has one box only then the rest of the tower has one box at every layer as well that is why we want the system to
+        #         # avoid giving 1 to a layer as much as possible
+        #         r = random.randint(1, min(layers[j-1], n))
+        #         i = 0
+        #         while r == 1 and n != 1 and i < 3:
+        #             r = random.randint(1, min(layers[j-1], n))
+        #             i += 1
+
+        #     layers.append(r)
+        #     n -= r
+        #     j += 1
+        # print('number of boxes in each layer is: {}'.format(layers))
+
+        # # Put the boxes on top of each other
+        # for (layer_num, layer_size) in enumerate(layers):
         #     self.boxes.append([])
-        #     right_edge, left_edge = self.get_right_left_edge(layer_num-1)
+        #     middle_x = self.get_middle(layer_num)
+        #     self.put_boxes(layer_num, layer_size, middle_x)
 
-        #     if right_edge == left_edge: # The layer below has one element
-        #         x_pos = random.randint(int(left_edge-self.rect_width/3), int(left_edge+self.rect_width/3))
-        #         self.put_box(layer_num=layer_num,
-        #                      x_pos=x_pos,
-        #                      y_pos=self.bottom_edge +int(self.rect_height/2) + self.rect_height * layer_num,
-        #                      rect_width=self.rect_width)
-        #         n -= 1
-        #         continue
+        # With this model putting boxes and setting up number of boxes happens in parallel
+        n = self.n
+        layer_num = -1 # Represents the index of the current layer
+        while n > 0:
+            layer_num += 1
+            self.boxes.append([])
+            right_edge, left_edge = self.get_right_left_edge(layer_num-1)
 
-        #     # Start from the left_edge and put boxes towards right edge
-        #     # Stop putting boxes if the number of objects required is reached
-        #     # Move on to the next layer if the right edge is reached
-        #     # left_edge -= (layer_num > 0) * int(self.max_space_rects/2)
-        #     left_edge += (layer_num > 0) * random.randint(0, self.max_space_rects)
-        #     # space_between = random.randint(0, self.max_space_rects)
-        #     # left_edge += space_between
-        #     while left_edge - self.rect_width/3 < right_edge and n > 0:
-        #         self.put_box(layer_num=layer_num,
-        #                      x_pos=left_edge - self.rect_width/3,
-        #                      y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num,
-        #                      rect_width=self.rect_width)
-        #         n -= 1
-        #         space_between = random.randint(0, self.max_space_rects)
-        #         left_edge += space_between # Put a space between rectangles
-        #         left_edge += self.rect_width
+            if right_edge == left_edge: # The layer below has one element
+                x_pos = random.randint(int(left_edge-self.rect_width/2), int(left_edge+self.rect_width/2))
+                self.put_box(layer_num=layer_num,
+                             x_pos=x_pos,
+                             y_pos=self.bottom_edge +int(self.rect_height/2) + self.rect_height * layer_num,
+                             rect_width=self.rect_width)
+                n -= 1
+                continue
+
+            # Start from the left_edge and put boxes towards right edge
+            # Stop putting boxes if the number of objects required is reached
+            # Move on to the next layer if the right edge is reached
+            left_edge += (layer_num > 0) * random.randint(0, self.max_space_rects)
+            while left_edge < right_edge and n > 0:
+                self.put_box(layer_num=layer_num,
+                             x_pos=left_edge,
+                             y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num,
+                             rect_width=self.rect_width)
+                n -= 1
+                space_between = random.randint(0, self.max_space_rects)
+                left_edge += space_between # Put a space between rectangles
+                left_edge += self.rect_width
 
         # NOTE: flat_boxes only have the boxes in the beginning
         # but self.boxes consists of the dropped_object as well at the end
@@ -256,17 +253,17 @@ class TowerCreator(pyglet.window.Window):
         self.boxes[layer_num].append(shape)
 
     # Return the rightmost/leftmost objects' middle positions of the given layer
-    # def get_right_left_edge(self, layer_num):
-    #     if layer_num == -1: # Means that this method is called for the first layer
-    #         return self.right_most, self.left_most
-    #     right_edge = -10000 # The window width cannot be 10000 pixels for sure
-    #     left_edge = 10000
-    #     for box in self.boxes[layer_num]:
-    #         if box.body.position[0] > right_edge: 
-    #             right_edge = box.body.position[0]
-    #         if box.body.position[0] < left_edge:
-    #             left_edge = box.body.position[0]
-    #     return right_edge, left_edge 
+    def get_right_left_edge(self, layer_num):
+        if layer_num == -1: # Means that this method is called for the first layer
+            return self.right_most, self.left_most
+        right_edge = -10000 # The window width cannot be 10000 pixels for sure
+        left_edge = 10000
+        for box in self.boxes[layer_num]:
+            if box.body.position[0] > right_edge: 
+                right_edge = box.body.position[0]
+            if box.body.position[0] < left_edge:
+                left_edge = box.body.position[0]
+        return right_edge, left_edge 
 
     def create_pos_for_boxes(self, layer_num, layer_size, index_in_layer, middle_x, to_drop=False):
         box_variation = int(self.rect_width * 0.3)
@@ -325,15 +322,15 @@ class TowerCreator(pyglet.window.Window):
         return int((left_edge + right_edge) / 2)
 
     # returns the right and left edge of the given layer
-    def get_right_left_edge(self, layer_num):
-        right_edge = -10000 # The window width cannot be 10000 pixels for sure
-        left_edge = 10000
-        for box in self.boxes[layer_num]:
-            if box.body.position[0] > right_edge: 
-                right_edge = box.body.position[0]
-            if box.body.position[0] < left_edge:
-                left_edge = box.body.position[0]
-        return right_edge+int(self.rect_width/2), left_edge-int(self.rect_width/2)
+    # def get_right_left_edge(self, layer_num):
+    #     right_edge = -10000 # The window width cannot be 10000 pixels for sure
+    #     left_edge = 10000
+    #     for box in self.boxes[layer_num]:
+    #         if box.body.position[0] > right_edge: 
+    #             right_edge = box.body.position[0]
+    #         if box.body.position[0] < left_edge:
+    #             left_edge = box.body.position[0]
+    #     return right_edge+int(self.rect_width/2), left_edge-int(self.rect_width/2)
 
     # Returns the x position of the current center of mass of self.boxes
     # TODO: these methods are not used for now, check whether you need them or not
@@ -368,15 +365,15 @@ class TowerCreator(pyglet.window.Window):
     def drop_object(self):
         layer_num = len(self.boxes)
         self.boxes.append([])
-        middle_x = self.get_middle(layer_num)
-        # When the box is put to drop the variation increases
-        self.put_boxes(layer_num=layer_num, layer_size=1, middle_x=middle_x, to_drop=True)
-        # right_edge, left_edge = self.get_right_left_edge(layer_num-1)
-        # x_pos = random.randint(int(left_edge - self.rect_width/3), int(right_edge + self.rect_width/3))
-        # self.put_box(layer_num=layer_num,
-        #              x_pos=x_pos,
-        #              y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num,
-        #              rect_width=self.rect_width)
+        # middle_x = self.get_middle(layer_num)
+        # # When the box is put to drop the variation increases
+        # self.put_boxes(layer_num=layer_num, layer_size=1, middle_x=middle_x, to_drop=True)
+        right_edge, left_edge = self.get_right_left_edge(layer_num-1)
+        x_pos = random.randint(int(left_edge - self.rect_width), int(right_edge + self.rect_width))
+        self.put_box(layer_num=layer_num,
+                     x_pos=x_pos,
+                     y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num,
+                     rect_width=self.rect_width)
         self.dropped_object = self.boxes[layer_num][0]
 
     # Create a random position to drop the object 
@@ -673,5 +670,5 @@ class TowerCreator(pyglet.window.Window):
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-    towerCreator = TowerCreator(n=7, N=200, self_run=True)
+    towerCreator = TowerCreator(n=15, N=200, self_run=True)
     towerCreator.run()
