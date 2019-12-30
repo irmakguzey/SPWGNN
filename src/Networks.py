@@ -39,12 +39,12 @@ class PropagationNetwork:
         # Using the same variables as @Fzaero's BRDPN depository
         if(self.set_weights):
             rm = RelationalModel((n_relations,),2,[150,150,150,150],self.relnet,True)
-            om = ObjectModel((n_objects,),2,[100,100],self.objnet,True)
+            om = ObjectModel((n_objects,),object_dim-1,[100,100],self.objnet,True)
             rmp = RelationalModel((n_relations,),350,[150,150,100],self.relnetp,True)
             omp = ObjectModel((n_objects,),300,[100,101],self.objnetp,True)
         else:
             rm=RelationalModel((n_relations,),2,[150,150,150,150])
-            om = ObjectModel((n_objects,),2,[100,100])
+            om = ObjectModel((n_objects,),object_dim-1,[100,100])
             
             rmp=RelationalModel((n_relations,),350,[150,150,100])
             omp = ObjectModel((n_objects,),300,[100,101])

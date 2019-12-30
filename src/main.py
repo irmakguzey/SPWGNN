@@ -29,7 +29,7 @@ def train_gnn(n, N, file_str, jenga=False):
 	if jenga:
 		n_objects = n-1
 		object_dim = 3
-	n_of_rel_type = 1 # for now we only have the distance relation
+	# n_of_rel_type = 1 # for now we only have the distance relation
 	n_relations = n_objects*(n_objects-1)
 	n_of_traj = N
 
@@ -56,11 +56,13 @@ def train_gnn(n, N, file_str, jenga=False):
 				if f > max_f:
 					boxes[t][f][o][0] = data[t][o][max_f][0] # when the frame of the current data is exceeded, the last position of the objects are saved 
 					boxes[t][f][o][1] = data[t][o][max_f][1]
-					boxes[t][f][o][2] = data[t][o][max_f][2]
+					if object_dim == 3:
+						boxes[t][f][o][2] = data[t][o][max_f][2]
 				else:
 					boxes[t][f][o][0] = data[t][o][f][0]
 					boxes[t][f][o][1] = data[t][o][f][1]
-					boxes[t][f][o][2] = data[t][o][f][2]
+					if object_dim == 3:
+						boxes[t][f][o][2] = data[t][o][f][2]
 
 
 	val_receiver_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
@@ -112,13 +114,13 @@ def train_gnn(n, N, file_str, jenga=False):
 # This script reads the saved trajectory, trains the graph neural network
 # Runs in Python3
 if __name__ == '__main__':
-	n = 10
+	n = 7
 	N = 1000
-	random_string = 'mgVPKSV4'
-	file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, N, random_string)
+	random_string = 'z8UHyLhB'
+	file_str = 'data/second_model_{}_{}_{}.txt'.format(n, N, random_string)
 	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
-	gnn_model = train_gnn(n, N, file_str, jenga=True)
-	# towerCreator = TowerCreator(n, N, demolish=True, gnn_model=gnn_model)
-	jengaBuilder = JengaBuilder (n, 15, self_run=True, predict_stability=True, gnn_model=gnn_model)
-	jengaBuilder.run()
+	gnn_model = train_gnn(n, N, file_str, jenga=False)
+	simulator = TowerCreator(n, 15, self_run=True, demolish=True, gnn_model=gnn_model)
+	# simulator = JengaBuilder (n, 15, self_run=True, predict_stability=True, gnn_model=gnn_model)
+	simulator.run()

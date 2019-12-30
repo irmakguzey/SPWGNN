@@ -68,7 +68,7 @@ class JengaBuilder(pyglet.window.Window):
 
         if self.self_run:
             if self.predict_stability: # If both self_run and predict_stability is true, then it will run and calculate success in each trajectory
-                self.run_and_calculate_success()
+                self.predict_and_calculate_success()
             elif self.demolish:
                 self.demolish_and_calculate_success()
             else:
@@ -89,11 +89,11 @@ class JengaBuilder(pyglet.window.Window):
         pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
         print('*** scheduling over')
 
-    def run_and_calculate_success(self):
+    def predict_and_calculate_success(self):
         for i in range(self.N):
             pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
             pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
-            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_success') # Calculate actual stability and compare it with the predicted one
+            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_predict_success') # Calculate actual stability and compare it with the predicted one
         
         pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
         pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
@@ -115,15 +115,15 @@ class JengaBuilder(pyglet.window.Window):
             self.remove_object()
         elif callback_type == 'save_trajectories':
             self.save_trajectories()
-        elif callback_type == 'calculate_success':
-            self.success.append(self.calculate_success())
-        elif callback_type == 'print_success':
-            print('self.success: {}'.format(self.success))
-            print('average success is : {}'.format(sum(self.success) / len(self.success)))
+        elif callback_type == 'calculate_predict_success':
+            self.success.append(self.calculate_predict_success())
         elif callback_type == 'remove_to_demolish':
             self.remove_to_demolish()
         elif callback_type == 'calculate_demolish_success':
             self.success.append(self.calculate_demolish_success())
+        elif callback_type == 'print_success':
+            print('self.success: {}'.format(self.success))
+            print('average success is : {}'.format(sum(self.success) / len(self.success)))
 
     def save_trajectories(self):
         # create random endix to the file name
@@ -330,7 +330,7 @@ class JengaBuilder(pyglet.window.Window):
 
     # Compares the actual stability of each object and the predicted stability
     # And checks how much of them was correct
-    def calculate_success(self):
+    def calculate_predict_success(self):
         calculated_stabilities = self.calculate_stability(-1)
         predicted_stabilities = self.stabilities
         success = 0
@@ -375,7 +375,7 @@ class JengaBuilder(pyglet.window.Window):
                 self.predict_stabilities()
                 # print('self.stabilities: {}'.format(self.stabilities))
                 self.predicted_stability = True
-                self.calculate_success()
+                # self.calculate_predict_success()
 
     def on_draw(self):
         self.clear()
