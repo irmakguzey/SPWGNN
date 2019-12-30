@@ -1,8 +1,3 @@
-# This model is the same as the first model. 
-# Only it has a graph neural network running at the background and it does some predictions.
-# A graph is put into the objects with each object representing a node in the graph. 
-# A line is drawn between the centers of the objects if they have a relationship.
-# The objects that are predicted to stay still is colored in yellow and the others are colored in blue. TODO: look into this comment
 import random
 import math
 import time
@@ -179,8 +174,6 @@ class TowerCreator(pyglet.window.Window):
 
         if layer_num > 0 and layer_size == 1:
             right_edge, left_edge = self.get_right_left_edge(layer_num-1) 
-            print('layer_num: {}, right_edge: {}, left_edge: {}'.format(layer_num, right_edge, left_edge))
-            print('self.boxes: {}'.format(self.boxes))
             # to make the beginning of the towers a little more stable instad of going halft left half right, we go 0.3 left, 0.3 right...
             x_pos = random.randint(int(left_edge)+int(self.rect_width * 0.2), int(right_edge)-int(self.rect_width * 0.2))
         else: 
