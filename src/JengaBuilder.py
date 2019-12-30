@@ -24,6 +24,10 @@ class JengaBuilder(pyglet.window.Window):
         self.removed_object = False # Check whether the random object to remove in jenga model is removed or not
         self.gnn_model = gnn_model
         self.stabilities = []
+        # Success in percentage - used both in remove_to_demolish success and predict_stability success
+        # If it is used in demolish success it holds the percentage of the objects that are demolished
+        # If it is used in predict success it holds the percentage of correct predicts 
+        self.success = [] 
 
         self.window_width = 1500
         self.window_height = 800
@@ -44,7 +48,7 @@ class JengaBuilder(pyglet.window.Window):
                             x=10, y=450)
 
         self.bottom_edge = 70
-        self.left_most = 200 # left_most point to put rectangle to
+        self.left_most = 400 # left_most point to put rectangle to
         self.right_most = self.window_width - self.left_most
 
         # Setting up some constants for tower construction with rectangles with different widths
@@ -63,8 +67,10 @@ class JengaBuilder(pyglet.window.Window):
         self.trajectories = []
 
         if self.self_run:
-            if predict_stability: # If both self_run and predict_stability is true, then it will run and calculate success in each trajectory
+            if self.predict_stability: # If both self_run and predict_stability is true, then it will run and calculate success in each trajectory
                 self.run_and_calculate_success()
+            elif self.demolish:
+                self.demolish_and_calculate_success()
             else:
                 self.run_and_take_trajectory()
         else:
@@ -84,11 +90,20 @@ class JengaBuilder(pyglet.window.Window):
         print('*** scheduling over')
 
     def run_and_calculate_success(self):
-        self.success = []
         for i in range(self.N):
             pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
             pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
             pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_success') # Calculate actual stability and compare it with the predicted one
+        
+        pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
+        pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
+
+    # This method runs remove to demolish and calculates how much of the objects were demolished
+    def demolish_and_calculate_success(self):
+        for i in range(self.N):
+            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
+            pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_to_demolish') # The program will calculate stability after this since self.predict_stability is True for sure
+            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_demolish_success') # Calculate actual stability and compare it with the predicted one
         
         pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
         pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
@@ -104,6 +119,11 @@ class JengaBuilder(pyglet.window.Window):
             self.success.append(self.calculate_success())
         elif callback_type == 'print_success':
             print('self.success: {}'.format(self.success))
+            print('average success is : {}'.format(sum(self.success) / len(self.success)))
+        elif callback_type == 'remove_to_demolish':
+            self.remove_to_demolish()
+        elif callback_type == 'calculate_demolish_success':
+            self.success.append(self.calculate_demolish_success())
 
     def save_trajectories(self):
         # create random endix to the file name
@@ -320,10 +340,20 @@ class JengaBuilder(pyglet.window.Window):
             c = calculated_stabilities[i][0]
             s = predicted_stabilities[0][i][0]
             # print('s: {}, c: {}, (s > 0.5): {}'.format(s, c, s>0.5))
-            if ((s > 0.5) == c):
-                success += 1
+            success += ((s > 0.5) == c) # if ((s>0.5) == c) then success += 1
 
         print('success calculated is: {}%'.format(success / stability_length * 100))
+        return success / stability_length * 100
+
+    # Calculates how much of the objects are demolished
+    def calculate_demolish_success(self):
+        calculated_stabilities = self.calculate_stability(-1)
+        stability_length = len(calculated_stabilities)
+        success = 0
+        
+        for i in range(stability_length):
+            success += (calculated_stabilities[i][0] == 0)
+
         return success / stability_length * 100
 
     def update(self, dt):

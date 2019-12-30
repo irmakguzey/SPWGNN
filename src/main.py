@@ -112,9 +112,9 @@ def train_gnn(n, N, file_str, jenga=False):
 # This script reads the saved trajectory, trains the graph neural network
 # Runs in Python3
 if __name__ == '__main__':
-	n = 20
-	N = 200
-	random_string = '6EVuyiE5'
+	n = 10
+	N = 1000
+	random_string = 'mgVPKSV4'
 	file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, N, random_string)
 	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
