@@ -93,28 +93,28 @@ class TowerCreator(pyglet.window.Window):
 
     def predict_and_calculate_success(self):
         for i in range(self.N):
-            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
+            pyglet.clock.schedule_once(self.callback, i*1.5, callback_type='create_world')
             if self.jenga:
-                pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
+                pyglet.clock.schedule_once(self.callback, i*1.5+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
             else:
-                pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='drop_object')
-            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_predict_success') # Calculate actual stability and compare it with the predicted one
+                pyglet.clock.schedule_once(self.callback, i*1.5+0.2, callback_type='drop_object')
+            pyglet.clock.schedule_once(self.callback, i*1.5+1.3, callback_type='calculate_predict_success') # Calculate actual stability and compare it with the predicted one
         
-        pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
-        pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
+        pyglet.clock.schedule_once(self.callback, self.N*1.5, callback_type='print_success')
+        pyglet.clock.schedule_once(self.event_loop.exit, self.N*1.5+1)
 
     # This method runs remove to demolish and calculates how much of the objects were demolished
     def demolish_and_calculate_success(self):
         for i in range(self.N):
-            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
+            pyglet.clock.schedule_once(self.callback, i*1.5, callback_type='create_world')
             if self.jenga:
-                pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_to_demolish') # The program will calculate stability after this since self.predict_stability is True for sure
+                pyglet.clock.schedule_once(self.callback, i*1.5+0.2, callback_type='remove_to_demolish') # The program will calculate stability after this since self.predict_stability is True for sure
             else:
-                pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='drop_to_demolish')
-            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_demolish_success') # Calculate actual stability and compare it with the predicted one
+                pyglet.clock.schedule_once(self.callback, i*1.5+0.2, callback_type='drop_to_demolish')
+            pyglet.clock.schedule_once(self.callback, i*1.5+1.3, callback_type='calculate_demolish_success') # Calculate actual stability and compare it with the predicted one
         
-        pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
-        pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
+        pyglet.clock.schedule_once(self.callback, self.N*1.5, callback_type='print_success')
+        pyglet.clock.schedule_once(self.event_loop.exit, self.N*1.5+1)
 
     def callback(self, dt, callback_type):
         if callback_type == 'create_world':
@@ -273,7 +273,9 @@ class TowerCreator(pyglet.window.Window):
         box_mean = middle_x + ( ((-1) ** index_in_layer) * math.floor((index_in_layer+1)/2) * mean_range ) 
 
         if layer_num > 0 and layer_size == 1:
-            right_edge, left_edge = self.get_right_left_edge(layer_num-1) 
+            right_edge, left_edge = self.get_right_left_edge(layer_num-1)
+            right_edge += self.rect_width / 2
+            left_edge -= self.rect_width / 2
             # to make the beginning of the towers a little more stable instad of going halft left half right, we go 0.3 left, 0.3 right...
             x_pos = random.randint(int(left_edge)+int(self.rect_width * 0.2), int(right_edge)-int(self.rect_width * 0.2))
         else: 
@@ -359,7 +361,8 @@ class TowerCreator(pyglet.window.Window):
 
         # Calculate the left most and right most points which when the center of mass is between these two values the system is stable
         right_edge, left_edge = self.get_right_left_edge(0)
-
+        right_edge += self.rect_width / 2
+        left_edge -= self.rect_width / 2
         return (com >= left_edge and com <= right_edge)
 
     def drop_object(self):
@@ -394,12 +397,20 @@ class TowerCreator(pyglet.window.Window):
         for i,box in enumerate(self.flat_boxes):
             self.trajectories[-1][i+1].append([box.body.position[0],box.body.position[1]])
 
-        num_of_predicts = 100
+        num_of_predicts = 10
         pos_stability = np.zeros((num_of_predicts, 3)) # 3: [stability_sum, x_pos, y_pos]
-
+        right_edge, left_edge = self.get_right_left_edge(layer_num-1)
+        right_edge += self.rect_width / 2
+        left_edge -= self.rect_width / 2
+        predict_interval = (right_edge - left_edge) / num_of_predicts
         for i in range(num_of_predicts):
             stability_sum = 0
-            x_pos, y_pos = self.create_pos_for_boxes(layer_num=layer_num, layer_size=1, index_in_layer=0, middle_x=middle_x, to_drop=True)
+            # x_pos, y_pos = self.create_pos_for_boxes(layer_num=layer_num, layer_size=1, index_in_layer=0, middle_x=middle_x, to_drop=True)
+            # x positions of demolish dropping is not random 
+            # System tries positions with some interval on the top layer
+            x_pos = left_edge + i * predict_interval
+            print('left_edge: {}, right_edge: {}, x_pos is: {}'.format(left_edge, right_edge, x_pos))
+            y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
             self.trajectories[-1][0][0] = [x_pos, y_pos]
             self.predict_stabilities()
             for s in self.stabilities[0]:
@@ -408,11 +419,9 @@ class TowerCreator(pyglet.window.Window):
             # print('pos_stability[i]: {}'.format(pos_stability[i]))
 
         self.trajectories[-1] = []
-        # print('stabilities after for in drop_to_demolish: {}'.format(pos_stability[:,0]))
         index_min = np.argmin(pos_stability[:,0])
         x_pos, y_pos = pos_stability[index_min, 1:]
-        # print('pos_stability with minimum stability is: {}, and x_pos,y_pos found: {},{}'.format(pos_stability[index_min], x_pos, y_pos))
-
+        print('found x_pos: {}'.format(x_pos))
         # Put the object with minimum stability
         mass = 50.0
         moment = pymunk.moment_for_box(mass, (self.rect_width, self.rect_height))
@@ -478,7 +487,6 @@ class TowerCreator(pyglet.window.Window):
     # Looks at the trajectory and calculates the stabilities of each object
     # trajectory = self.trajectories[i] == (n_of_objects, n_of_frame, (x,y))
     def calculate_stability(self, trajectory_index):
-        print('trajectories[-1] in calculate_stability: {}'.format(self.trajectories[-1]))
         n_of_frame = len(self.trajectories[trajectory_index][0]) # number of frame of the zeroth object
         n_of_objects = len(self.trajectories[trajectory_index]) # self.n+1
 
@@ -562,7 +570,6 @@ class TowerCreator(pyglet.window.Window):
             success += (calculated_stabilities[i][0] == 0)
 
         return success / stability_length * 100
-
 
     def update(self, dt):
         step_dt = 1/250.
@@ -670,5 +677,5 @@ class TowerCreator(pyglet.window.Window):
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-    towerCreator = TowerCreator(n=15, N=200, self_run=True)
+    towerCreator = TowerCreator(n=15, N=2000, self_run=True)
     towerCreator.run()

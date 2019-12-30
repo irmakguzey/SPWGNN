@@ -114,13 +114,14 @@ def train_gnn(n, N, file_str, jenga=False):
 # This script reads the saved trajectory, trains the graph neural network
 # Runs in Python3
 if __name__ == '__main__':
-	n = 7
-	N = 1000
-	random_string = 'z8UHyLhB'
+	n = 15
+	N = 200
+	random_string = '9VVgEG8l'
 	file_str = 'data/second_model_{}_{}_{}.txt'.format(n, N, random_string)
 	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
-	gnn_model = train_gnn(n, N, file_str, jenga=False)
-	simulator = TowerCreator(n, 15, self_run=True, demolish=True, gnn_model=gnn_model)
-	# simulator = JengaBuilder (n, 15, self_run=True, predict_stability=True, gnn_model=gnn_model)
+	drop_model = train_gnn(n, N, file_str, jenga=False)
+	# jenga_model = train_gnn(n, N, file_str, jenga=True)
+	simulator = TowerCreator(n, 15, self_run=True, demolish=True, gnn_model=drop_model)
+	# simulator = JengaBuilder (n, 15, self_run=True, demolish=True, gnn_model=jenga_model)
 	simulator.run()

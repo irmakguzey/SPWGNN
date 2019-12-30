@@ -48,7 +48,7 @@ class JengaBuilder(pyglet.window.Window):
                             x=10, y=450)
 
         self.bottom_edge = 70
-        self.left_most = 400 # left_most point to put rectangle to
+        self.left_most = 300 # left_most point to put rectangle to
         self.right_most = self.window_width - self.left_most
 
         # Setting up some constants for tower construction with rectangles with different widths
@@ -91,22 +91,22 @@ class JengaBuilder(pyglet.window.Window):
 
     def predict_and_calculate_success(self):
         for i in range(self.N):
-            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
-            pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
-            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_predict_success') # Calculate actual stability and compare it with the predicted one
+            pyglet.clock.schedule_once(self.callback, i*1.5, callback_type='create_world')
+            pyglet.clock.schedule_once(self.callback, i*1.5+0.2, callback_type='remove_object') # The program will calculate stability after this since self.predict_stability is True for sure
+            pyglet.clock.schedule_once(self.callback, i*1.5+1.3, callback_type='calculate_predict_success') # Calculate actual stability and compare it with the predicted one
         
-        pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
-        pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
+        pyglet.clock.schedule_once(self.callback, self.N*1.5, callback_type='print_success')
+        pyglet.clock.schedule_once(self.event_loop.exit, self.N*1.5+1)
 
     # This method runs remove to demolish and calculates how much of the objects were demolished
     def demolish_and_calculate_success(self):
         for i in range(self.N):
-            pyglet.clock.schedule_once(self.callback, i, callback_type='create_world')
-            pyglet.clock.schedule_once(self.callback, i+0.2, callback_type='remove_to_demolish') # The program will calculate stability after this since self.predict_stability is True for sure
-            pyglet.clock.schedule_once(self.callback, i+0.8, callback_type='calculate_demolish_success') # Calculate actual stability and compare it with the predicted one
+            pyglet.clock.schedule_once(self.callback, i*1.5, callback_type='create_world')
+            pyglet.clock.schedule_once(self.callback, i*1.5+0.2, callback_type='remove_to_demolish') # The program will calculate stability after this since self.predict_stability is True for sure
+            pyglet.clock.schedule_once(self.callback, i*1.5+1.3, callback_type='calculate_demolish_success') # Calculate actual stability and compare it with the predicted one
         
-        pyglet.clock.schedule_once(self.callback, self.N, callback_type='print_success')
-        pyglet.clock.schedule_once(self.event_loop.exit, self.N+1)
+        pyglet.clock.schedule_once(self.callback, self.N*1.5, callback_type='print_success')
+        pyglet.clock.schedule_once(self.event_loop.exit, self.N*1.5+1)
 
     def callback(self, dt, callback_type):
         if callback_type == 'create_world':
@@ -271,6 +271,7 @@ class JengaBuilder(pyglet.window.Window):
     # Looks at the trajectory and calculates the stabilities of each object
     # trajectory = self.trajectories[i] == (n_of_objects, n_of_frame, (x,y))
     def calculate_stability(self, trajectory_index):
+        # print('trajectories[-1] in calculate_stability: {}'.format(self.trajectories[-1]))
         n_of_frame = len(self.trajectories[trajectory_index][0]) # number of frame of the zeroth object
         n_of_objects = len(self.trajectories[trajectory_index]) # self.n+1
         n_objects_attr_dim = 3
@@ -334,12 +335,10 @@ class JengaBuilder(pyglet.window.Window):
         calculated_stabilities = self.calculate_stability(-1)
         predicted_stabilities = self.stabilities
         success = 0
-        # print('calculated_stabilities: {}, predicted_stabilities: {}'.format(calculated_stabilities, predicted_stabilities))
         stability_length = len(calculated_stabilities)
         for i in range(stability_length):
             c = calculated_stabilities[i][0]
             s = predicted_stabilities[0][i][0]
-            # print('s: {}, c: {}, (s > 0.5): {}'.format(s, c, s>0.5))
             success += ((s > 0.5) == c) # if ((s>0.5) == c) then success += 1
 
         print('success calculated is: {}%'.format(success / stability_length * 100))
@@ -373,9 +372,7 @@ class JengaBuilder(pyglet.window.Window):
         if self.predict_stability and not self.predicted_stability:
             if self.removed_object:
                 self.predict_stabilities()
-                # print('self.stabilities: {}'.format(self.stabilities))
                 self.predicted_stability = True
-                # self.calculate_predict_success()
 
     def on_draw(self):
         self.clear()
@@ -435,9 +432,5 @@ class JengaBuilder(pyglet.window.Window):
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-
-    # towerCreator = TowerCreator(n=11, N=10000, self_run=True, jenga=True)
-    # towerCreator = TowerCreator(n=7, jenga=True)
-    # towerCreator = TowerCreator(n=7, self_run=False, jenga=True)
-    jengaBuilder = JengaBuilder(n=10, N=1000, self_run=True)
+    jengaBuilder = JengaBuilder(n=15, N=2000, self_run=True)
     jengaBuilder.run()
