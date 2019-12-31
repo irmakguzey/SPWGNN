@@ -116,14 +116,29 @@ class JengaBuilder(pyglet.window.Window):
         elif callback_type == 'save_trajectories':
             self.save_trajectories()
         elif callback_type == 'calculate_predict_success':
-            self.success.append(self.calculate_predict_success())
+            if len(self.success) == 0:
+                self.success = [[],[],[],[]]
+            true_positive, true_negative, false_positive, false_negative = self.calculate_predict_success()
+            self.success[0].append(true_positive)
+            self.success[1].append(true_negative)
+            self.success[2].append(false_positive)
+            self.success[3].append(false_negative)
+            # self.success.append(self.calculate_predict_success())
         elif callback_type == 'remove_to_demolish':
             self.remove_to_demolish()
         elif callback_type == 'calculate_demolish_success':
             self.success.append(self.calculate_demolish_success())
         elif callback_type == 'print_success':
             print('self.success: {}'.format(self.success))
-            print('average success is : {}'.format(sum(self.success) / len(self.success)))
+            if self.predict_stability:
+                print('total true_positive: {}, total true_negative: {}, total false_positive: {}, total false_negative: {}'.format(
+                    sum(self.success[0]) / len(self.success[0]),
+                    sum(self.success[1]) / len(self.success[1]),
+                    sum(self.success[2]) / len(self.success[2]),
+                    sum(self.success[3]) / len(self.success[3])
+                ))
+            else:
+                print('average success is : {}'.format(sum(self.success) / len(self.success)))
 
     def save_trajectories(self):
         # create random endix to the file name
@@ -334,15 +349,28 @@ class JengaBuilder(pyglet.window.Window):
     def calculate_predict_success(self):
         calculated_stabilities = self.calculate_stability(-1)
         predicted_stabilities = self.stabilities
-        success = 0
+        true_positive = 0
+        true_negative = 0
+        false_positive = 0
+        false_negative = 0
         stability_length = len(calculated_stabilities)
         for i in range(stability_length):
             c = calculated_stabilities[i][0]
             s = predicted_stabilities[0][i][0]
-            success += ((s > 0.5) == c) # if ((s>0.5) == c) then success += 1
+            true_positive += ((s > 0.5) and c == 1)
+            true_negative += ((s < 0.5) and c == 0)
+            false_positive += ((s > 0.5) and c == 0)
+            false_negative += ((s < 0.5) and c == 1) 
 
-        print('success calculated is: {}%'.format(success / stability_length * 100))
-        return success / stability_length * 100
+        print('true_positive: {}, true_negative: {}, false_positive: {}, false_negative: {}'.format(true_positive / stability_length * 100,
+                                                                                                    true_negative / stability_length * 100,
+                                                                                                    false_positive / stability_length * 100,
+                                                                                                    false_negative / stability_length * 100))
+        # print('success calculated is: {}%'.format(success / stability_length * 100))
+        return (true_positive / stability_length * 100,
+               true_negative / stability_length * 100,
+               false_positive / stability_length * 100,
+               false_negative / stability_length * 100)
 
     # Calculates how much of the objects are demolished
     def calculate_demolish_success(self):
@@ -432,5 +460,5 @@ class JengaBuilder(pyglet.window.Window):
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-    jengaBuilder = JengaBuilder(n=15, N=2000, self_run=True)
+    jengaBuilder = JengaBuilder(n=18, N=10000, self_run=True)
     jengaBuilder.run()
