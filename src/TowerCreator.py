@@ -54,9 +54,9 @@ class TowerCreator(pyglet.window.Window):
         self.relation_threshold = math.sqrt(self.rect_width ** 2 + self.rect_height ** 2)
         self.max_space_rects = self.rect_width / 2
 
-        self.bottom_edge = 70
-        self.left_most = 300 # left_most point to put rectangle to
+        self.left_most = 600 - self.n * 200 / 10 # left_most point to put rectangle to
         self.right_most = self.window_width - self.left_most
+        self.bottom_edge = 70
 
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.draw_options.flags = self.draw_options.DRAW_SHAPES
@@ -126,13 +126,26 @@ class TowerCreator(pyglet.window.Window):
         elif callback_type == 'save_trajectories':
             self.save_trajectories()
         elif callback_type == 'calculate_predict_success':
-            self.success.append(self.calculate_predict_success())
+            if len(self.success) == 0:
+                self.success = [[],[],[],[]]
+            true_positive, true_negative, false_positive, false_negative = self.calculate_predict_success()
+            self.success[0].append(true_positive)
+            self.success[1].append(true_negative)
+            self.success[2].append(false_positive)
+            self.success[3].append(false_negative)
+            print('total true_positive: {}, total true_negative: {}, total false_positive: {}, total false_negative: {}'.format(
+                sum(self.success[0]) / len(self.success[0]),
+                sum(self.success[1]) / len(self.success[1]),
+                sum(self.success[2]) / len(self.success[2]),
+                sum(self.success[3]) / len(self.success[3])
+            ))
         elif callback_type == 'remove_to_demolish':
             self.remove_to_demolish()
         elif callback_type == 'drop_to_demolish':
             self.drop_to_demolish()
         elif callback_type == 'calculate_demolish_success':
             self.success.append(self.calculate_demolish_success())
+            print('average success is : {}'.format(sum(self.success) / len(self.success)))
         elif callback_type == 'print_success':
             print('self.success: {}'.format(self.success))
             if self.predict_stability:
@@ -417,7 +430,6 @@ class TowerCreator(pyglet.window.Window):
             # x positions of demolish dropping is not random 
             # System tries positions with some interval on the top layer
             x_pos = left_edge + i * predict_interval
-            print('left_edge: {}, right_edge: {}, x_pos is: {}'.format(left_edge, right_edge, x_pos))
             y_pos=self.bottom_edge + self.rect_height/2 + self.rect_height * layer_num
             self.trajectories[-1][0][0] = [x_pos, y_pos]
             self.predict_stabilities()
@@ -699,5 +711,5 @@ class TowerCreator(pyglet.window.Window):
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-    towerCreator = TowerCreator(n=15, N=10000, self_run=True)
+    towerCreator = TowerCreator(n=9, N=10000, self_run=True)
     towerCreator.run()

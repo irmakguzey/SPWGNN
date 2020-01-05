@@ -13,14 +13,17 @@ import pymunk
 from pymunk import Vec2d
 import pymunk.pyglet_util
 
+from Networks import *
+
 class JengaBuilder(pyglet.window.Window):
-    def __init__(self, n, N=0, self_run=False, predict_stability=False, demolish=False, gnn_model=None):
+    def __init__(self, n, N=0, self_run=False, predict_stability=False, demolish=False, interactive=False, gnn_model=None):
         self.n = n # Number of rectangles
         self.N = N # Number of iterations
         self.self_run = self_run
         self.predict_stability = predict_stability
         self.predicted_stability = False
         self.demolish = demolish
+        self.interactive = interactive
         self.removed_object = False # Check whether the random object to remove in jenga model is removed or not
         self.gnn_model = gnn_model
         self.stabilities = []
@@ -28,6 +31,8 @@ class JengaBuilder(pyglet.window.Window):
         # If it is used in demolish success it holds the percentage of the objects that are demolished
         # If it is used in predict success it holds the percentage of correct predicts 
         self.success = [] 
+        # For the interactive mode: the box that the mouse was showing to last 
+        self.last_chosen_box = None
 
         self.window_width = 1500
         self.window_height = 800
@@ -47,9 +52,9 @@ class JengaBuilder(pyglet.window.Window):
                             font_size=10,
                             x=10, y=450)
 
-        self.bottom_edge = 70
-        self.left_most = 300 # left_most point to put rectangle to
+        self.left_most = 600 - self.n * 200 / 13 # left_most point to put rectangle to
         self.right_most = self.window_width - self.left_most
+        self.bottom_edge = 70
 
         # Setting up some constants for tower construction with rectangles with different widths
         self.rect_height = 80
@@ -123,11 +128,18 @@ class JengaBuilder(pyglet.window.Window):
             self.success[1].append(true_negative)
             self.success[2].append(false_positive)
             self.success[3].append(false_negative)
+            print('total true_positive: {}, total true_negative: {}, total false_positive: {}, total false_negative: {}'.format(
+                sum(self.success[0]) / len(self.success[0]),
+                sum(self.success[1]) / len(self.success[1]),
+                sum(self.success[2]) / len(self.success[2]),
+                sum(self.success[3]) / len(self.success[3])
+            ))
             # self.success.append(self.calculate_predict_success())
         elif callback_type == 'remove_to_demolish':
             self.remove_to_demolish()
         elif callback_type == 'calculate_demolish_success':
             self.success.append(self.calculate_demolish_success())
+            print('average success is : {}'.format(sum(self.success) / len(self.success)))
         elif callback_type == 'print_success':
             print('self.success: {}'.format(self.success))
             if self.predict_stability:
@@ -317,6 +329,12 @@ class JengaBuilder(pyglet.window.Window):
     def predict_stabilities(self):
         n_of_traj = 1
         n_objects = self.n-1 # including the removed object
+        if self.interactive: # TODO: fix this patch
+            n_objects = len(self.flat_boxes) - 1
+            # Change the gnn
+            new_gnn_model = PropagationNetwork().getModel(n_objects=n_objects, object_dim=3)
+            new_gnn_model.set_weights(self.gnn_model.get_weights())
+            self.gnn_model = new_gnn_model
         n_relations = n_objects * (n_objects - 1)
         n_object_attr_dim = 3
 
@@ -330,7 +348,6 @@ class JengaBuilder(pyglet.window.Window):
         val_sender_relations = np.zeros((n_of_traj, n_objects, n_relations), dtype=float)
         propagation = np.zeros((n_of_traj, n_objects, 100))
         cnt = 0 # cnt will indicate the relation that we are working with
-        # TODO turn this into a data structure
         for m in range(n_objects):
             for j in range(n_objects):
                 if(m != j):
@@ -355,8 +372,8 @@ class JengaBuilder(pyglet.window.Window):
         false_negative = 0
         stability_length = len(calculated_stabilities)
         for i in range(stability_length):
-            c = calculated_stabilities[i][0]
-            s = predicted_stabilities[0][i][0]
+            c = calculated_stabilities[i,0]
+            s = predicted_stabilities[0,i,0]
             true_positive += ((s > 0.5) and c == 1)
             true_negative += ((s < 0.5) and c == 0)
             false_positive += ((s > 0.5) and c == 0)
@@ -431,6 +448,29 @@ class JengaBuilder(pyglet.window.Window):
                     glVertex2f(box.body.position[0], box.body.position[1])
                 
         glEnd()
+
+        # Print the percentage of the stabilities of the rest of the objects
+        # on the object that is chosen
+        if self.interactive and self.last_chosen_box != None:
+
+            # Draw an X on top of the objects that are going to fall
+            for (i, box) in enumerate(self.flat_boxes):
+                if i > self.flat_boxes.index(self.last_chosen_box):
+                    if self.stabilities[0, i-1, 0] < 0.9:
+                        pyglet.text.Label('X',
+                            font_size=30,
+                            x=box.body.position[0]-10,
+                            y=box.body.position[1]).draw()
+                if i < self.flat_boxes.index(self.last_chosen_box):
+                    if self.stabilities[0, i, 0] < 0.9:
+                        pyglet.text.Label('X',
+                            font_size=30,
+                            x=box.body.position[0]-10,
+                            y=box.body.position[1]).draw()
+
+            stability_sum = sum(self.stabilities[0,:,0])
+            print('stabilities: {}, stability_sum: {}'.format(self.stabilities, stability_sum))
+            
             
     # This method returns true if two box is touching each other and false otherwise
     def there_is_relation(self, box_a, box_b):
@@ -456,9 +496,54 @@ class JengaBuilder(pyglet.window.Window):
         elif symbol == key.S:
             self.save_trajectories()
         
+    # Interactive game features are added below
+    def on_mouse_motion(self, x, y, dx, dy):
+        if self.interactive:
+            # If the chosen box is None (not chosen yet) or the mouse has gone too far from the chosen one
+            if self.last_chosen_box == None or \
+                math.sqrt((self.last_chosen_box.body.position[0] - x) ** 2 + (self.last_chosen_box.body.position[1] - y) ** 2) > self.rect_width_min:
+                    
+                # Iterate the boxes
+                for b in self.flat_boxes:
+                    box_pos_distance = math.sqrt((b.body.position[0] - x) ** 2 + (b.body.position[1] - y) ** 2)
+                    # Set the last_chosen_box
+                    if box_pos_distance < self.rect_width_min:
+                        self.last_chosen_box = b
+                        
+                        # Predict stability of the rest of the boxes when chosen_box is removed
+                        if (len(self.trajectories[-1]) == 0):
+                            for _ in range(self.n-1):
+                                self.trajectories[-1].append([])
+
+                        remove_index = self.flat_boxes.index(self.last_chosen_box)
+                        print('remove_index is: {}'.format(remove_index))
+                        for box_index,box in enumerate(self.flat_boxes): # put the positions of the objects properly
+                            if box_index < remove_index:
+                                self.trajectories[-1][box_index].append([box.body.position[0], box.body.position[1], self.get_rect_width(box)])
+                            elif box_index > remove_index:
+                                self.trajectories[-1][box_index-1].append([box.body.position[0], box.body.position[1], self.get_rect_width(box)])
+
+                        self.predict_stabilities()
+                        self.trajectories[-1] = []
+
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        if self.interactive:
+            remove_object = self.last_chosen_box
+            self.flat_boxes.remove(remove_object) # remove that object from self.flat_boxes
+            for layer in self.boxes: # remove the object from self.boxes
+                if remove_object in layer:
+                    layer.remove(remove_object)
+                    if len(layer) == 0:
+                        self.boxes.remove(layer)
+            self.space.remove(remove_object)
+            self.last_chosen_box = None
+            self.trajectories[-1] = []
+
 
 # This script runs the model and saves the trajectories if wanted
 # Supposed to run in Python2
 if __name__ == '__main__':
-    jengaBuilder = JengaBuilder(n=18, N=10000, self_run=True)
+    
+    jengaBuilder = JengaBuilder(n=15, N=10000, self_run=False, interactive=True)
     jengaBuilder.run()

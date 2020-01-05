@@ -3,8 +3,11 @@ from JengaBuilder import *
 from Networks import *
 from Blocks import *
 import json
+import pickle
 
 # boxes = ((n_of_traj, n_of_frame, n_objects, n_object_attr_dim))
+
+
 def calculate_stability(boxes):
 	# Look at the last frame_threshold of the data and calculate whether the position of the object is the same or not
 	n_of_traj = len(boxes)
@@ -21,6 +24,10 @@ def calculate_stability(boxes):
 			if pos_change < stability_threshold:
 				y[t,o,0] = 1.0
 	return y
+	prop_net = PropagationNetwork()
+	prop_net = PropagationNetwork()
+	prop_net = PropagationNetwork()
+	prop_net = PropagationNetwork()
 
 def train_gnn(n, N, file_str, jenga=False):
 	# Get the data and train the model
@@ -41,7 +48,7 @@ def train_gnn(n, N, file_str, jenga=False):
 	json_file.close()
 
 	# n_object_attr_dim = 2 # x position, y position
-	data = [d for d in data if len(d) != 0] # TODO look into this bug, for some reason some trajectories had 0 objects in them
+	data = [d for (i,d) in enumerate(data) if len(d) != 0 and i < 5000] # TODO look into this bug, for some reason some trajectories had 0 objects in them
 	n_of_traj = len(data)
 	f_lengths = [len(t[0]) for t in data]
 	n_of_frame = max(f_lengths)
@@ -94,34 +101,24 @@ def train_gnn(n, N, file_str, jenga=False):
 	gnn_model.fit({'objects': boxes[:,0,:,:], 'sender_relations': val_sender_relations, 'receiver_relations': val_receiver_relations, 'propagation': propagation},
 						{'target': y},
 						batch_size=32,
-						epochs=10,
+						epochs=100,
 						validation_split=0.2,
 						shuffle=True,
 						verbose=1)
-
-	# TODO use data generator instead of actual fit function
-	# train_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_train,relation_threshold,True,64)
-	# valid_gen=DataGenerator(n_objects,n_of_rel_type,n_of_frame,n_of_traj,boxes_val,relation_threshold,False,128)
-	# second_model.fit_generator(generator=train_gen,
-	#                           validation_data=valid_gen,
-	#                           epochs=100,
-	#                           use_multiprocessing=True,
-	#                           workers=32,
-	#                           verbose=1)
 
 	return gnn_model
 
 # This script reads the saved trajectory, trains the graph neural network
 # Runs in Python3
 if __name__ == '__main__':
-	n = 10
-	N = 1000
-	random_string = 'mgVPKSV4'
+	n = 11
+	N = 10000
+	random_string = 'QgO1Xwla'
 	file_str = 'data/jenga_model_{}_{}_{}.txt'.format(n, N, random_string)
-	# file_str = 'data/second_model_11_5000_nIZLWKWp.txt'
 
-	# drop_model = train_gnn(n, N, file_str, jenga=False)
-	jenga_model = train_gnn(n, N, file_str, jenga=True)
-	# simulator = TowerCreator(n, 50, self_run=True, demolish=True, gnn_model=drop_model)
-	simulator = JengaBuilder (n, 20, self_run=True, predict_stability=True, gnn_model=jenga_model)
+	drop_model = train_gnn(n, N, file_str, jenga=True)
+	prop_net = PropagationNetwork()
+	drop_model_o = prop_net.getModel(n_objects=10, object_dim=3)
+	drop_model_o.set_weights(drop_model.get_weights())
+	simulator = JengaBuilder(11, 100, interactive=True, gnn_model=drop_model_o)
 	simulator.run()

@@ -12,7 +12,7 @@ import numpy as np
 class PropagationNetwork:
     def __init__(self):
         self.Nets={}
-        self.set_weights = False # This is for reusing the model (i guess)
+        self.set_weights = False 
     def getModel(self, n_objects, object_dim=3, relation_dim=1): # objects dim is (in this model): width, height, x position, y position
         if n_objects in self.Nets.keys():
             return self.Nets[n_objects]
